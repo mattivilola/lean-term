@@ -1,0 +1,11 @@
+{
+  "cols" : 120,
+  "font" : "Menlo-Regular",
+  "fontSize" : 13,
+  "pid" : 89152,
+  "renderer" : "metal",
+  "renderLoop" : true,
+  "rows" : 40,
+  "screenHz" : 120,
+  "screenScale" : 2
+}

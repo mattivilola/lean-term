@@ -1,0 +1,68 @@
+[
+  {
+    "column": 1,
+    "title": "Untitled",
+    "samples": 200,
+    "median_ms": 42.76,
+    "p95_ms": 77.654,
+    "mean_ms": 45.45095,
+    "min_ms": 18.61,
+    "max_ms": 99.6,
+    "population_sd_ms": 16.15860936459261
+  },
+  {
+    "column": 2,
+    "title": "Untitled",
+    "samples": 200,
+    "median_ms": 22.11,
+    "p95_ms": 34.924,
+    "mean_ms": 23.18295,
+    "min_ms": 14.74,
+    "max_ms": 49.35,
+    "population_sd_ms": 6.9985243299927165
+  },
+  {
+    "column": 3,
+    "title": "Metal",
+    "samples": 200,
+    "median_ms": 34.09,
+    "p95_ms": 69.634,
+    "mean_ms": 38.4048,
+    "min_ms": 16.41,
+    "max_ms": 212.15,
+    "population_sd_ms": 18.411216471488242
+  },
+  {
+    "column": 4,
+    "title": "Ghostty",
+    "samples": 200,
+    "median_ms": 30.994999999999997,
+    "p95_ms": 58.079499999999996,
+    "mean_ms": 33.1937,
+    "min_ms": 12.55,
+    "max_ms": 85.44,
+    "population_sd_ms": 12.946880601519426
+  },
+  {
+    "column": 5,
+    "title": "Metal-confirm",
+    "samples": 200,
+    "median_ms": 32.095,
+    "p95_ms": 55.181999999999974,
+    "mean_ms": 34.0166,
+    "min_ms": 15.6,
+    "max_ms": 124.54,
+    "population_sd_ms": 13.332978190936938
+  },
+  {
+    "column": 6,
+    "title": "CG-confirm",
+    "samples": 200,
+    "median_ms": 27.049999999999997,
+    "p95_ms": 49.03199999999999,
+    "mean_ms": 31.143,
+    "min_ms": 16.38,
+    "max_ms": 230.97,
+    "population_sd_ms": 20.251739085816805
+  }
+]

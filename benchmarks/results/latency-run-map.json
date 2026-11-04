@@ -1,0 +1,51 @@
+{
+  "tool": "Typometer 1.0.1",
+  "samples_per_successful_run": 200,
+  "runs": [
+    {
+      "column": 1,
+      "label": "Untitled",
+      "target": "SwiftTerm CoreGraphics",
+      "role": "preflight; exclude from renderer decision"
+    },
+    {
+      "column": 2,
+      "label": "Untitled",
+      "target": "SwiftTerm CoreGraphics",
+      "role": "fresh controlled window; user confirmed completion"
+    },
+    {
+      "column": 3,
+      "label": "Metal",
+      "target": "SwiftTerm Metal",
+      "role": "user confirmed completion"
+    },
+    {
+      "column": 4,
+      "label": "Ghostty",
+      "target": "Ghostty 1.3.1 isolated reference",
+      "role": "user confirmed completion"
+    },
+    {
+      "column": 5,
+      "label": "Metal-confirm",
+      "target": "SwiftTerm Metal",
+      "role": "reverse-order confirmation; user confirmed completion"
+    },
+    {
+      "column": 6,
+      "label": "CG-confirm",
+      "target": "SwiftTerm CoreGraphics",
+      "role": "fresh window; reverse-order confirmation; user confirmed completion"
+    }
+  ],
+  "unavailable": [
+    {
+      "target": "Terminal.app",
+      "reason": "Reference-pattern/available-line calibration failed on two attempts; no latency result"
+    }
+  ],
+  "pending": [],
+  "note": "Six complete 200-sample columns verified; first column exactly matches the saved preflight. Column 2 is the fresh CoreGraphics run by recorded sequence and renderer diagnostics.",
+  "csv_verified": true
+}

@@ -1,0 +1,33 @@
+{
+  "pid": 1193,
+  "seconds": 2.003536791075021,
+  "cpu_percent_one_core": 0.0014079268950283575,
+  "readings": [
+    {
+      "time": 1893768.0405795,
+      "footprint_bytes": 67667240,
+      "rss_bytes": 84688896,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 52436782
+    },
+    {
+      "time": 1893769.0457875,
+      "footprint_bytes": 67667240,
+      "rss_bytes": 84672512,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 52437459
+    },
+    {
+      "time": 1893770.044116291,
+      "footprint_bytes": 67667240,
+      "rss_bytes": 84672512,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 52437459
+    }
+  ],
+  "timebase": {
+    "numer": 125,
+    "denom": 3
+  },
+  "correction": "Raw counters relabeled as Mach ticks and scaled by measured mach_timebase_info (125/3)."
+}

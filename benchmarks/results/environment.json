@@ -1,0 +1,30 @@
+{
+  "os": "27.0.1",
+  "os_build": "26A434",
+  "chip": "Apple M3 Max",
+  "memory": "36 GB",
+  "hardware_source": "system_profiler inventory at experiment start",
+  "swiftterm_revision": "309adcc28bdf0e01f6403d04616323b379fb5635",
+  "swift": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.0.0",
+  "xcode": "Xcode 27.1\nBuild version 27A9275",
+  "viewport": {
+    "cols": 120,
+    "rows": 40,
+    "font": "Menlo-Regular",
+    "points": 13,
+    "display_max_hz": 120,
+    "scale": 2
+  },
+  "priority": [
+    "typing/TUI response",
+    "memory and startup",
+    "bulk throughput"
+  ],
+  "latency_tool": {
+    "name": "Typometer",
+    "version": "1.0.1",
+    "java": "OpenJDK 21.0.12.1",
+    "method": "AWT Robot, native API unavailable on macOS"
+  },
+  "power": "Now drawing from 'AC Power'"
+}

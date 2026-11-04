@@ -1,0 +1,9 @@
+{
+  "phase": "latency fixtures; hash captured after Metal run",
+  "sha256": {
+    "Sources/LeanTermBench/main.swift": "8c9ac0d18ca9d9e944d7a2a801dd829c0bdb135239cbcbf39b5a5100641298f1",
+    "Package.swift": "ef2d22a654111729ce637232abccff342ae9722436657260d4cbeb0eed8e8dff",
+    "Package.resolved": "62895de57a4f86dac62ad0c132b732f1b96fa36193b24fe4b3511b5b868c4e6b",
+    "dist/LeanTermBench.app/Contents/MacOS/LeanTermBench": "74be522815408dc387a307884df3b7cda360f5244fece4749b5e7110f1dfef6d"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "child_pid": 95860,
+  "cols": 120,
+  "rows": 40,
+  "metric": "PTY writer completion, excludes final screen painting",
+  "runs": [
+    {
+      "fixture": "ascii",
+      "repeat": 1,
+      "seconds": 0.06906499999999482,
+      "mib_per_second": 144.7903655142117
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 1,
+      "seconds": 0.1875864579999984,
+      "mib_per_second": 53.308548813408635
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 2,
+      "seconds": 0.060102624999998966,
+      "mib_per_second": 166.3811954010071
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 2,
+      "seconds": 0.1819182500000096,
+      "mib_per_second": 54.969536333088165
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 3,
+      "seconds": 0.05747775000000388,
+      "mib_per_second": 173.97943716025082
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 3,
+      "seconds": 0.18394504200000483,
+      "mib_per_second": 54.363856423089025
+    }
+  ],
+  "phase": "filled",
+  "fixtures": {
+    "ascii": {
+      "bytes": 10485704,
+      "sha256": "f3f3c5e4b09bda9694a7ec4ab57719e0da30ea9dee0fa232cec83ba0258f1966"
+    },
+    "mixed": {
+      "bytes": 10485720,
+      "sha256": "f2c873d817510a1d0a1458d2b3962cb4b707ed380fb6db484997e0067c05482b"
+    }
+  },
+  "parent_pid": 91123,
+  "metadata_correction": "parent_pid is the launching shell, not the GUI app; GUI pid is in metal-info.json"
+}

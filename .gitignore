@@ -1,0 +1,9 @@
+.build/
+.cache/
+dist/
+.DS_Store
+benchmarks/fixtures/
+benchmarks/results/local/
+__pycache__/
+# Independent website repository managed in another chat.
+website/

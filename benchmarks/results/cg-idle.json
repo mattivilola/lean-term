@@ -1,0 +1,439 @@
+{
+  "pid": 1193,
+  "seconds": 60.005079,
+  "cpu_percent_one_core": 0.17248352426967056,
+  "readings": [
+    {
+      "time": 0.026370291,
+      "footprint_bytes": 52642872,
+      "rss_bytes": 101744640,
+      "idle_wakeups": 1,
+      "cpu_mach_ticks": 19343565
+    },
+    {
+      "time": 1.030993125,
+      "footprint_bytes": 52413496,
+      "rss_bytes": 101515264,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19589324
+    },
+    {
+      "time": 2.036102791,
+      "footprint_bytes": 52364344,
+      "rss_bytes": 101466112,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19591858
+    },
+    {
+      "time": 3.040766583,
+      "footprint_bytes": 52298808,
+      "rss_bytes": 101400576,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19596131
+    },
+    {
+      "time": 4.043494291,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 101171200,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19602807
+    },
+    {
+      "time": 5.048749,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 101171200,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19604313
+    },
+    {
+      "time": 6.049447125,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 101171200,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19609767
+    },
+    {
+      "time": 7.054564458,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 101171200,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19633907
+    },
+    {
+      "time": 8.056052125,
+      "footprint_bytes": 52298808,
+      "rss_bytes": 98729984,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19633907
+    },
+    {
+      "time": 9.061310041,
+      "footprint_bytes": 52331576,
+      "rss_bytes": 97763328,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 19673621
+    },
+    {
+      "time": 10.064717041,
+      "footprint_bytes": 52331576,
+      "rss_bytes": 97763328,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20041360
+    },
+    {
+      "time": 11.069871416,
+      "footprint_bytes": 52528184,
+      "rss_bytes": 98107392,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20377611
+    },
+    {
+      "time": 12.074874958,
+      "footprint_bytes": 52528184,
+      "rss_bytes": 98107392,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20380741
+    },
+    {
+      "time": 13.080028083,
+      "footprint_bytes": 52528184,
+      "rss_bytes": 98107392,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20381251
+    },
+    {
+      "time": 14.081295125,
+      "footprint_bytes": 52528184,
+      "rss_bytes": 98107392,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20381251
+    },
+    {
+      "time": 15.085994666,
+      "footprint_bytes": 52528184,
+      "rss_bytes": 98107392,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20382301
+    },
+    {
+      "time": 16.091103208,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97779712,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20396876
+    },
+    {
+      "time": 17.09629325,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97779712,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20398413
+    },
+    {
+      "time": 18.100587,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97779712,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20398413
+    },
+    {
+      "time": 19.101511958,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20398413
+    },
+    {
+      "time": 20.102158916,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20398413
+    },
+    {
+      "time": 21.105665208,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399238
+    },
+    {
+      "time": 22.110208291,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399238
+    },
+    {
+      "time": 23.114794291,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399238
+    },
+    {
+      "time": 24.116296,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97746944,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399899
+    },
+    {
+      "time": 25.121421083,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97730560,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399899
+    },
+    {
+      "time": 26.12640375,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97730560,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20399899
+    },
+    {
+      "time": 27.127236583,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97730560,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20400696
+    },
+    {
+      "time": 28.12862775,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97730560,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20400696
+    },
+    {
+      "time": 29.130556666,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 97730560,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20400696
+    },
+    {
+      "time": 30.132742291,
+      "footprint_bytes": 52282424,
+      "rss_bytes": 96829440,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 20401427
+    },
+    {
+      "time": 31.137855125,
+      "footprint_bytes": 52380728,
+      "rss_bytes": 98074624,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 21053105
+    },
+    {
+      "time": 32.143039041,
+      "footprint_bytes": 52380728,
+      "rss_bytes": 97910784,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 21328662
+    },
+    {
+      "time": 33.14775375,
+      "footprint_bytes": 52380728,
+      "rss_bytes": 97910784,
+      "idle_wakeups": 2,
+      "cpu_mach_ticks": 21509232
+    },
+    {
+      "time": 34.152945083,
+      "footprint_bytes": 52380728,
+      "rss_bytes": 97927168,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21758048
+    },
+    {
+      "time": 35.156500083,
+      "footprint_bytes": 52380728,
+      "rss_bytes": 97927168,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21758048
+    },
+    {
+      "time": 36.157890875,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 97894400,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21764321
+    },
+    {
+      "time": 37.163045458,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 97894400,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21764321
+    },
+    {
+      "time": 38.167076458,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 97894400,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21764321
+    },
+    {
+      "time": 39.170895833,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 97402880,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21765090
+    },
+    {
+      "time": 40.174725666,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21765090
+    },
+    {
+      "time": 41.179962416,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21765090
+    },
+    {
+      "time": 42.181463666,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21766546
+    },
+    {
+      "time": 43.18383075,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21766546
+    },
+    {
+      "time": 44.18880825,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21766546
+    },
+    {
+      "time": 45.191554625,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93700096,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21767177
+    },
+    {
+      "time": 46.194278625,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 94060544,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21823321
+    },
+    {
+      "time": 47.199452791,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93749248,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21823321
+    },
+    {
+      "time": 48.202228416,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 93519872,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21824383
+    },
+    {
+      "time": 49.202406,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21824383
+    },
+    {
+      "time": 50.20783775,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21824383
+    },
+    {
+      "time": 51.212865666,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21825177
+    },
+    {
+      "time": 52.214801708,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21825177
+    },
+    {
+      "time": 53.216771083,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21825177
+    },
+    {
+      "time": 54.217564,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826044
+    },
+    {
+      "time": 55.222303291,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826044
+    },
+    {
+      "time": 56.223114958,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826044
+    },
+    {
+      "time": 57.224156166,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826730
+    },
+    {
+      "time": 58.226413416,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826730
+    },
+    {
+      "time": 59.231674,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21826730
+    },
+    {
+      "time": 60.031449291,
+      "footprint_bytes": 52315168,
+      "rss_bytes": 92061696,
+      "idle_wakeups": 3,
+      "cpu_mach_ticks": 21827538
+    }
+  ],
+  "timebase": {
+    "numer": 125,
+    "denom": 3
+  },
+  "correction": "Raw counters relabeled as Mach ticks and scaled by measured mach_timebase_info (125/3)."
+}

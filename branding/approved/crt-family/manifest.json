@@ -1,0 +1,289 @@
+{
+  "family": "CRT family",
+  "approved_option": "01",
+  "date": "2026-11-04",
+  "lean_term": "Exact inherited emerald CRT >_ artwork from Lean VS Code; now assigned to the terminal.",
+  "lean_vs_code": "New teal CRT with mint curly braces, generated with built-in imagegen from approved option 01.",
+  "files": {
+    "lean-term/AppIcon.iconset/icon_128x128.png": {
+      "bytes": 22090,
+      "sha256": "839c6e3cb6004878ce4f63a75a48e309c8281e58e6a13d5eb00441ef06b59f7d"
+    },
+    "lean-term/AppIcon.iconset/icon_128x128@2x.png": {
+      "bytes": 83009,
+      "sha256": "c8837ab5e6bdfd12c0efa4ad558495afee3402ff56891982dc317072836563a8"
+    },
+    "lean-term/AppIcon.iconset/icon_16x16.png": {
+      "bytes": 781,
+      "sha256": "6ab01fc51969e60e07a183f2e8509bcf522eb50b2cdab417628c105abfeb22ff"
+    },
+    "lean-term/AppIcon.iconset/icon_16x16@2x.png": {
+      "bytes": 2045,
+      "sha256": "9e6d19d4bae29057fc1d3a115e6bef3ab2e55cea0f6e923dcd14821061539258"
+    },
+    "lean-term/AppIcon.iconset/icon_256x256.png": {
+      "bytes": 83009,
+      "sha256": "c8837ab5e6bdfd12c0efa4ad558495afee3402ff56891982dc317072836563a8"
+    },
+    "lean-term/AppIcon.iconset/icon_256x256@2x.png": {
+      "bytes": 356767,
+      "sha256": "3dc34eca91263ef8ee728e81d5a07499fd8fabd22ab817f70a1fe7d719d8736e"
+    },
+    "lean-term/AppIcon.iconset/icon_32x32.png": {
+      "bytes": 2005,
+      "sha256": "197a21c1758709873e3385dd2f5d5ea74bc4e03b18d3042d1e731779957475fa"
+    },
+    "lean-term/AppIcon.iconset/icon_32x32@2x.png": {
+      "bytes": 6397,
+      "sha256": "7f7e3b5e1902aed6b7e7fc934903f4658677d514904d3e6335975cebb42ce4cb"
+    },
+    "lean-term/AppIcon.iconset/icon_512x512.png": {
+      "bytes": 356767,
+      "sha256": "3dc34eca91263ef8ee728e81d5a07499fd8fabd22ab817f70a1fe7d719d8736e"
+    },
+    "lean-term/AppIcon.iconset/icon_512x512@2x.png": {
+      "bytes": 1476885,
+      "sha256": "047586c8899a4e4c587ecd6bc1f3d15da2bb3a51a00b4b31728a1b1e29085bcb"
+    },
+    "lean-term/LeanTerm.icns": {
+      "bytes": 2390779,
+      "sha256": "a9a35f37412dfa8f832e2c14e1593ef5de0397b903da2a0fafecf1739f150baf"
+    },
+    "lean-term/app-icon-1024.png": {
+      "bytes": 1476885,
+      "sha256": "047586c8899a4e4c587ecd6bc1f3d15da2bb3a51a00b4b31728a1b1e29085bcb"
+    },
+    "lean-term/apple-touch-icon.png": {
+      "bytes": 42706,
+      "sha256": "ba2a77066fba66d6aa4270f04178c7c94ade9ffdc12b708403fb10da9f9d935c"
+    },
+    "lean-term/favicon-16x16.png": {
+      "bytes": 1285,
+      "sha256": "ac22b0adecc515bae7086edd321eadc11087638a67dfc71862660714811a93db"
+    },
+    "lean-term/favicon-32x32.png": {
+      "bytes": 2582,
+      "sha256": "c4bcce994e61273d4dadc0bd0409feee7cc7156f51fe86c3951aea167c42c08b"
+    },
+    "lean-term/favicon.ico": {
+      "bytes": 15086,
+      "sha256": "ec16ccd751b20bfc1be271e09dbc8262ea05c8588c33f8ca2e2a3fc7694a10fb"
+    },
+    "lean-term/favicon.svg": {
+      "bytes": 9483,
+      "sha256": "cca690959bdb835d78fea17267449eb1834f48c0c1b8333a37d76c8aeba7548a"
+    },
+    "lean-term/icon-128.png": {
+      "bytes": 22619,
+      "sha256": "36c83649cfa349e78cccb9027f6af9bb845cc20ca21ea0e813328da3e308dd06"
+    },
+    "lean-term/icon-16.png": {
+      "bytes": 1285,
+      "sha256": "ac22b0adecc515bae7086edd321eadc11087638a67dfc71862660714811a93db"
+    },
+    "lean-term/icon-180.png": {
+      "bytes": 42706,
+      "sha256": "ba2a77066fba66d6aa4270f04178c7c94ade9ffdc12b708403fb10da9f9d935c"
+    },
+    "lean-term/icon-192.png": {
+      "bytes": 47952,
+      "sha256": "8d664bf1c90a0949c55bfaae3faeb4aa7b2e76d40bd63452ead3a375583914ec"
+    },
+    "lean-term/icon-256.png": {
+      "bytes": 83697,
+      "sha256": "c1fd2f3eb99cdac103a7f8d86d65ac8cdf80b4735d3e92ed03c0343a6201b1df"
+    },
+    "lean-term/icon-32.png": {
+      "bytes": 2582,
+      "sha256": "c4bcce994e61273d4dadc0bd0409feee7cc7156f51fe86c3951aea167c42c08b"
+    },
+    "lean-term/icon-48.png": {
+      "bytes": 4445,
+      "sha256": "004b0bc2b1f8815ce2166ca291a58c30fd34e095f069aa876aec8b345eb3ef70"
+    },
+    "lean-term/icon-512.png": {
+      "bytes": 356946,
+      "sha256": "23ee02d8f12082de247b6e636aeda2eccf805250a78dcca560ccc447c85607ec"
+    },
+    "lean-term/icon-64.png": {
+      "bytes": 6936,
+      "sha256": "77dbe0029752830ae5214139a4747c20d48814ae995a3d97089dc97002689c58"
+    },
+    "lean-term/logo-mark.svg": {
+      "bytes": 30395,
+      "sha256": "f88581cbc526dfa49be02472a66235bb3212f9120168cf5dcdaad315b064f3e7"
+    },
+    "lean-term/safari-pinned-tab.svg": {
+      "bytes": 303,
+      "sha256": "32a055fd034c90b0284ec78efa4f56da324d5f1d0d3633c1bfe88ed90d075abc"
+    },
+    "lean-term/site.webmanifest": {
+      "bytes": 413,
+      "sha256": "4c5c69e3a31db179b434db57f703c61a4a23f7a08108e1669c4f83504d85e319"
+    },
+    "lean-term/symbol-monochrome.svg": {
+      "bytes": 311,
+      "sha256": "3e7f40cadf530adb1b0f593d9d9d4dc4ca744912adb61ac3411cfa175e075c79"
+    },
+    "lean-term/symbol.svg": {
+      "bytes": 306,
+      "sha256": "a30edcc91cf600ed9fd9a674f5a601f8a39517c85c3f3454bc91f5310a2065b2"
+    },
+    "lean-term/wordmark-on-dark.svg": {
+      "bytes": 35484,
+      "sha256": "e666782bb09f8c50339ddcd269c5377e3d2a3a068f860e561d73b52c20c14882"
+    },
+    "lean-term/wordmark-on-dark@2x.png": {
+      "bytes": 91020,
+      "sha256": "17574e24ccbe823162bf13655b90f91ac0ff91541c9eaee54952aa4559aec2f4"
+    },
+    "lean-term/wordmark-on-light.svg": {
+      "bytes": 35484,
+      "sha256": "fbbc33c43587a833e1f4b0010c452de649fd8738d6249a377f551ebc40e883ba"
+    },
+    "lean-term/wordmark-on-light@2x.png": {
+      "bytes": 91027,
+      "sha256": "b510412464f222a5a3d2c871810683b1fc65f2a8826dabfe4a716bbbcea4adbc"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_128x128.png": {
+      "bytes": 22866,
+      "sha256": "57fbb0e4dfa293bb91d02574139f3cb0d13e3858d8c127f1513ecae1093c38e9"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_128x128@2x.png": {
+      "bytes": 81473,
+      "sha256": "5779d3b24cc2935b6736019f1c59eb5f80b485b5ed92d51ca4231395fe510730"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_16x16.png": {
+      "bytes": 1317,
+      "sha256": "d2a7d887be78f6f4acba8fee3cc18ec6f99ee0fcf3dbc6b488a332689903b0db"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_16x16@2x.png": {
+      "bytes": 2585,
+      "sha256": "769a294d3b4301ea634a314ae1ab2b7c6df4bd52dcb0a881e98930a34f7efa38"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_256x256.png": {
+      "bytes": 81473,
+      "sha256": "5779d3b24cc2935b6736019f1c59eb5f80b485b5ed92d51ca4231395fe510730"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_256x256@2x.png": {
+      "bytes": 329186,
+      "sha256": "ca2cde53b05ef731665da05721f91157030378d906f92b9ab6ae460bea757da2"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_32x32.png": {
+      "bytes": 2585,
+      "sha256": "769a294d3b4301ea634a314ae1ab2b7c6df4bd52dcb0a881e98930a34f7efa38"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_32x32@2x.png": {
+      "bytes": 6921,
+      "sha256": "2529d84c7a75fdcf6874e61f64ae62837d9a776a93e1d932e40cc339743639f0"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_512x512.png": {
+      "bytes": 329186,
+      "sha256": "ca2cde53b05ef731665da05721f91157030378d906f92b9ab6ae460bea757da2"
+    },
+    "lean-vs-code/AppIcon.iconset/icon_512x512@2x.png": {
+      "bytes": 1370270,
+      "sha256": "5ca698cd68748a6c1efd2f540a37044d0de978b78ede5ef1fcc2412b0c819c60"
+    },
+    "lean-vs-code/LeanVSCode.icns": {
+      "bytes": 2224186,
+      "sha256": "3daf00736f79a805ba120be9448c80aef673868e9d2153d5ba73538527f9cfe9"
+    },
+    "lean-vs-code/app-icon-1024.png": {
+      "bytes": 1370270,
+      "sha256": "5ca698cd68748a6c1efd2f540a37044d0de978b78ede5ef1fcc2412b0c819c60"
+    },
+    "lean-vs-code/apple-touch-icon.png": {
+      "bytes": 42454,
+      "sha256": "5ef286e03787972fd29178811e51e14062627840a37c550d55c916a9faa9898b"
+    },
+    "lean-vs-code/favicon-16x16.png": {
+      "bytes": 1317,
+      "sha256": "d2a7d887be78f6f4acba8fee3cc18ec6f99ee0fcf3dbc6b488a332689903b0db"
+    },
+    "lean-vs-code/favicon-32x32.png": {
+      "bytes": 2585,
+      "sha256": "769a294d3b4301ea634a314ae1ab2b7c6df4bd52dcb0a881e98930a34f7efa38"
+    },
+    "lean-vs-code/favicon.ico": {
+      "bytes": 15086,
+      "sha256": "7ae3195479f4eb8a90a324cbf0659e95533be1f3743a97a3d713311bd55729ad"
+    },
+    "lean-vs-code/favicon.svg": {
+      "bytes": 9469,
+      "sha256": "c293ab3ba263bd1d8df625299a4b9dc047f89d28bad71df1e96fe7d9e420186b"
+    },
+    "lean-vs-code/icon-128.png": {
+      "bytes": 22866,
+      "sha256": "57fbb0e4dfa293bb91d02574139f3cb0d13e3858d8c127f1513ecae1093c38e9"
+    },
+    "lean-vs-code/icon-16.png": {
+      "bytes": 1317,
+      "sha256": "d2a7d887be78f6f4acba8fee3cc18ec6f99ee0fcf3dbc6b488a332689903b0db"
+    },
+    "lean-vs-code/icon-180.png": {
+      "bytes": 42454,
+      "sha256": "5ef286e03787972fd29178811e51e14062627840a37c550d55c916a9faa9898b"
+    },
+    "lean-vs-code/icon-192.png": {
+      "bytes": 47700,
+      "sha256": "a7cbef092f704d685d1f43d85274d281b0565c58a7c0594d1eb594a53d2e31ab"
+    },
+    "lean-vs-code/icon-256.png": {
+      "bytes": 81473,
+      "sha256": "5779d3b24cc2935b6736019f1c59eb5f80b485b5ed92d51ca4231395fe510730"
+    },
+    "lean-vs-code/icon-32.png": {
+      "bytes": 2585,
+      "sha256": "769a294d3b4301ea634a314ae1ab2b7c6df4bd52dcb0a881e98930a34f7efa38"
+    },
+    "lean-vs-code/icon-48.png": {
+      "bytes": 4425,
+      "sha256": "46a8a6a68cc4ce37e73585208935f715332660a88e8dfb7d89c220dc771280aa"
+    },
+    "lean-vs-code/icon-512.png": {
+      "bytes": 329186,
+      "sha256": "ca2cde53b05ef731665da05721f91157030378d906f92b9ab6ae460bea757da2"
+    },
+    "lean-vs-code/icon-64.png": {
+      "bytes": 6921,
+      "sha256": "2529d84c7a75fdcf6874e61f64ae62837d9a776a93e1d932e40cc339743639f0"
+    },
+    "lean-vs-code/logo-mark.svg": {
+      "bytes": 30729,
+      "sha256": "5229ba544989b491d314c3b9c9d0b8ac840410c4d327ece8227c01c111bdbfac"
+    },
+    "lean-vs-code/safari-pinned-tab.svg": {
+      "bytes": 409,
+      "sha256": "efd689ed7bf8c5819f6cc54e58b1360c6537a3c84dac33a6eab9f8e010f9126e"
+    },
+    "lean-vs-code/site.webmanifest": {
+      "bytes": 419,
+      "sha256": "7fe1255cd4159bb7d4df8a6c3d9f0d0824ef46f5a2e6346868bd822c8057544a"
+    },
+    "lean-vs-code/symbol-monochrome.svg": {
+      "bytes": 417,
+      "sha256": "9d5d7b0f620343e756c5ed8a51761be4fb9b73369d6ad1e19eab8617f8c32695"
+    },
+    "lean-vs-code/symbol.svg": {
+      "bytes": 412,
+      "sha256": "d42a46c671c6ef8dd9c00636ffc105660595c81b407807f8b8618d8aad4c5fc6"
+    },
+    "lean-vs-code/wordmark-on-dark.svg": {
+      "bytes": 38790,
+      "sha256": "be3fb4a63cc51177632f5153dd4821cca418edf0f49c6f10e40bc25235846a91"
+    },
+    "lean-vs-code/wordmark-on-dark@2x.png": {
+      "bytes": 101069,
+      "sha256": "4a4c68afa11a221f8b658f1d65ded4dd557899301e55d05f1f7a6302cac25d4a"
+    },
+    "lean-vs-code/wordmark-on-light.svg": {
+      "bytes": 38790,
+      "sha256": "780544f17eb3f8acf751e28081f95ce4f2df76ef2f3f4022c048c64fcf9dfff0"
+    },
+    "lean-vs-code/wordmark-on-light@2x.png": {
+      "bytes": 101061,
+      "sha256": "fadc43c5c983ac231a6ceb4ef0394e367fade983d2d355996df38337237abc29"
+    }
+  }
+}

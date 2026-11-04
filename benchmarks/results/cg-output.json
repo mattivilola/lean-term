@@ -1,0 +1,57 @@
+{
+  "child_pid": 3634,
+  "cols": 120,
+  "rows": 40,
+  "metric": "PTY writer completion, excludes final screen painting",
+  "runs": [
+    {
+      "fixture": "ascii",
+      "repeat": 1,
+      "seconds": 0.046377875000004565,
+      "mib_per_second": 215.61890436414555
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 1,
+      "seconds": 0.173270291999998,
+      "mib_per_second": 57.71307786003766
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 2,
+      "seconds": 0.05207799999999452,
+      "mib_per_second": 192.01863731785656
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 2,
+      "seconds": 0.18314766599999643,
+      "mib_per_second": 54.60054212772517
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 3,
+      "seconds": 0.058490249999991306,
+      "mib_per_second": 170.96775264663373
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 3,
+      "seconds": 0.17096695800000816,
+      "mib_per_second": 58.490611109936616
+    }
+  ],
+  "phase": "filled",
+  "fixtures": {
+    "ascii": {
+      "bytes": 10485704,
+      "sha256": "f3f3c5e4b09bda9694a7ec4ab57719e0da30ea9dee0fa232cec83ba0258f1966"
+    },
+    "mixed": {
+      "bytes": 10485720,
+      "sha256": "f2c873d817510a1d0a1458d2b3962cb4b707ed380fb6db484997e0067c05482b"
+    }
+  },
+  "parent_pid": 1197,
+  "metadata_correction": "parent_pid is the launching shell; GUI pid is in cg-info.json"
+}

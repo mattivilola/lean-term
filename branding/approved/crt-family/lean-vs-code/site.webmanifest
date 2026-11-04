@@ -1,0 +1,22 @@
+{
+  "name": "Lean VS Code",
+  "short_name": "Lean VS Code",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#f2f7f3",
+  "theme_color": "#073e46",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
