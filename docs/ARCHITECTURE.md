@@ -126,3 +126,7 @@ ssh started inside a local tmux or screen is not visible, since the foreground j
 
 OSC 9;4 progress reports use SwiftTerm's own 3 pt bar at the top of the terminal; Lean Term
 only tints it with the brand phosphor colour. SwiftTerm keeps the error and paused colours.
+
+The bell is observed through SwiftTerm’s open `bell` hook (`LeanTerminalView`), coalesced to
+one main-thread hop per burst. It stays silent and only puts an amber bell in the tab of a
+session that is not being viewed, cleared when its window becomes key.

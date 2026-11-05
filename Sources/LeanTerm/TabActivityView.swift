@@ -18,16 +18,18 @@ final class TabActivityView: NSView {
     private static let symbolSize: CGFloat = 14
     private let dotView = DotView()
     private let symbol = NSImageView()
+    private let bellSymbol = NSImageView()
     private var phosphor = NSColor.controlAccentColor
     private var amber = NSColor.systemOrange
     private(set) var mark: Mark = .hidden
     private(set) var session: SessionMark = .none
 
     private var showsSymbol: Bool { session != .none }
+    private var showsBell = false
     private var showsDot: Bool { mark != .hidden }
 
     override var intrinsicContentSize: NSSize {
-        let width = (showsSymbol ? Self.symbolSize : 0) + (showsDot ? Self.dotSize : 0)
+        let width = (showsSymbol ? Self.symbolSize : 0) + (showsBell ? Self.symbolSize : 0) + (showsDot ? Self.dotSize : 0)
         return NSSize(width: max(width, Self.dotSize), height: Self.dotSize)
     }
 
@@ -37,8 +39,11 @@ final class TabActivityView: NSView {
         layerContentsRedrawPolicy = .never
         symbol.imageScaling = .scaleNone
         symbol.isHidden = true
+        bellSymbol.imageScaling = .scaleNone
+        bellSymbol.isHidden = true
         dotView.isHidden = true
         addSubview(symbol)
+        addSubview(bellSymbol)
         addSubview(dotView)
         isHidden = true
         setAccessibilityElement(false)
@@ -50,7 +55,9 @@ final class TabActivityView: NSView {
         super.layout()
         let symbolWidth = showsSymbol ? Self.symbolSize : 0
         symbol.frame = NSRect(x: 0, y: 0, width: symbolWidth, height: bounds.height)
-        dotView.frame = NSRect(x: symbolWidth, y: 0, width: Self.dotSize, height: bounds.height)
+        let bellWidth = showsBell ? Self.symbolSize : 0
+        bellSymbol.frame = NSRect(x: symbolWidth, y: 0, width: bellWidth, height: bounds.height)
+        dotView.frame = NSRect(x: symbolWidth + bellWidth, y: 0, width: Self.dotSize, height: bounds.height)
     }
 
     func applyColors(phosphor: NSColor, amber: NSColor) {
@@ -71,6 +78,12 @@ final class TabActivityView: NSView {
         render()
     }
 
+    func setAttention(_ on: Bool) {
+        guard on != showsBell else { return }
+        showsBell = on
+        render()
+    }
+
     private func render() {
         dotView.apply(mark, color: phosphor)
         dotView.isHidden = !showsDot
@@ -86,7 +99,11 @@ final class TabActivityView: NSView {
         }
         symbol.isHidden = !showsSymbol
         symbol.contentTintColor = amber
-        isHidden = !showsSymbol && !showsDot
+        bellSymbol.image = showsBell ? Self.symbolImage("bell.fill", description: "Bell rang") : nil
+        bellSymbol.toolTip = showsBell ? "Bell rang" : nil
+        bellSymbol.isHidden = !showsBell
+        bellSymbol.contentTintColor = amber
+        isHidden = !showsSymbol && !showsBell && !showsDot
         setAccessibilityElement(!isHidden)
         setAccessibilityLabel(accessibilityDescription())
         invalidateIntrinsicContentSize()
@@ -94,10 +111,14 @@ final class TabActivityView: NSView {
     }
 
     private func show(symbol name: String, description: String) {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: description)
-        symbol.image = image?.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 10, weight: .medium))
+        symbol.image = Self.symbolImage(name, description: description)
         symbol.toolTip = description
         toolTip = description
+    }
+
+    private static func symbolImage(_ name: String, description: String) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: description)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 10, weight: .medium))
     }
 
     private func accessibilityDescription() -> String? {
@@ -107,6 +128,7 @@ final class TabActivityView: NSView {
         case .remote(let description): parts.append(description)
         case .root: parts.append("Running as root")
         }
+        if showsBell { parts.append("Bell rang") }
         switch mark {
         case .hidden: break
         case .running: parts.append("Command running")

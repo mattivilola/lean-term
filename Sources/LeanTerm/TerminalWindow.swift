@@ -24,7 +24,7 @@ final class SessionActivityCounter: Sendable {
 final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTerminalViewDelegate, NSToolbarDelegate {
     enum State { case starting, running, closing, exited, failed }
     let id = UUID()
-    let terminal: LocalProcessTerminalView
+    let terminal: LeanTerminalView
     private let surface = TerminalSurface()
     private let status = NSTextField(labelWithString: "")
     private let dimensions = NSTextField(labelWithString: "")
@@ -34,6 +34,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private let activityCounter = SessionActivityCounter()
     private var activityModel = SessionActivityModel()
     private var finishedUnseen = false
+    private var bellUnseen = false
     private var foregroundGroup: pid_t = 0
     private var foregroundLeaderPendingExec = false
     private var session = ForegroundSession.local
@@ -62,7 +63,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         currentDirectory = launch.directory
         let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
         let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
-        terminal = LocalProcessTerminalView(frame: .zero, font: font,
+        terminal = LeanTerminalView(frame: .zero, font: font,
             options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: Preferences.scrollbackLines))
         let rect = terminal.getOptimalFrameSize()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: rect.width + 28, height: rect.height + 46),
@@ -77,6 +78,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         window.contentView = surface
         terminal.processDelegate = self
         installOutputHandler()
+        terminal.onBell = { [weak self] in self?.bellRang() }
         terminal.bellStyle = .none
         // This remains the measured CoreGraphics/CoreText implementation.
         do { try terminal.setUseMetal(false) }
@@ -168,6 +170,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         app?.recordActiveSession(self)
         savePlacement()
         finishedUnseen = false
+        bellUnseen = false
         visibilityChanged()
     }
     func windowDidChangeOcclusionState(_ notification: Notification) { visibilityChanged() }
@@ -176,6 +179,17 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
 
     private func visibilityChanged() {
         app?.refreshResourceMonitoring()
+        renderActivity()
+    }
+
+    /// The key window of an active app with its terminal on screen.
+    private var isBeingViewed: Bool {
+        window?.isKeyWindow == true && isResourceDisplayVisible && NSApp.isActive
+    }
+
+    private func bellRang() {
+        guard preferences.showTabActivity, !isBeingViewed else { return }
+        bellUnseen = true
         renderActivity()
     }
 
@@ -206,7 +220,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             remoteSession: session.isRemote)
         activityCounter.disarm()
         if activityModel.record(sample) == .finishedLongCommand, preferences.showTabActivity,
-           !(window?.isKeyWindow == true && isResourceDisplayVisible && NSApp.isActive) {
+           !isBeingViewed {
             finishedUnseen = true
         }
         if activityModel.indicator != .idle { finishedUnseen = false }
@@ -253,6 +267,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         remoteLocation = nil
         updateSubtitle()
         finishedUnseen = false
+        bellUnseen = false
         renderActivity()
     }
 
@@ -266,6 +281,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         } else {
             tabMark.setMark(finishedUnseen ? .done : .hidden)
         }
+        tabMark.setAttention(bellUnseen)
         tabMark.setSession(preferences.showSessionMarks ? session.mark : .none)
     }
     func windowDidResignKey(_ notification: Notification) { savePlacement(); visibilityChanged() }
@@ -276,7 +292,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     func apply(_ value: Preferences) {
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
-        if !value.showTabActivity { finishedUnseen = false }
+        if !value.showTabActivity { finishedUnseen = false; bellUnseen = false }
         updateSubtitle()
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
