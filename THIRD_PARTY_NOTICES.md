@@ -1,8 +1,12 @@
 # Third-party notices
 
-The benchmark app links SwiftTerm, pinned at `309adcc28bdf0e01f6403d04616323b379fb5635`.
+Lean Term and its benchmark fixture link SwiftTerm, pinned at `309adcc28bdf0e01f6403d04616323b379fb5635`.
 
 Upstream: https://github.com/migueldeicaza/SwiftTerm
+
+A small host lifecycle compatibility change is applied by
+`script/prepare_dependency.py`; see [architecture notes](docs/ARCHITECTURE.md).
+Rendering and terminal parsing are unchanged.
 
 ```text
 Copyright (c) 2019-2026 Miguel de Icaza (https://github.com/migueldeicaza)

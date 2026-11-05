@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "product": "Lean Term",
+  "files": {
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_128x128.png": {
+      "bytes": 22090,
+      "sha256": "839c6e3cb6004878ce4f63a75a48e309c8281e58e6a13d5eb00441ef06b59f7d"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_128x128@2x.png": {
+      "bytes": 83009,
+      "sha256": "c8837ab5e6bdfd12c0efa4ad558495afee3402ff56891982dc317072836563a8"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_16x16.png": {
+      "bytes": 781,
+      "sha256": "6ab01fc51969e60e07a183f2e8509bcf522eb50b2cdab417628c105abfeb22ff"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_16x16@2x.png": {
+      "bytes": 2045,
+      "sha256": "9e6d19d4bae29057fc1d3a115e6bef3ab2e55cea0f6e923dcd14821061539258"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_256x256.png": {
+      "bytes": 83009,
+      "sha256": "c8837ab5e6bdfd12c0efa4ad558495afee3402ff56891982dc317072836563a8"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_256x256@2x.png": {
+      "bytes": 356767,
+      "sha256": "3dc34eca91263ef8ee728e81d5a07499fd8fabd22ab817f70a1fe7d719d8736e"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_32x32.png": {
+      "bytes": 2005,
+      "sha256": "197a21c1758709873e3385dd2f5d5ea74bc4e03b18d3042d1e731779957475fa"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_32x32@2x.png": {
+      "bytes": 6397,
+      "sha256": "7f7e3b5e1902aed6b7e7fc934903f4658677d514904d3e6335975cebb42ce4cb"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_512x512.png": {
+      "bytes": 356767,
+      "sha256": "3dc34eca91263ef8ee728e81d5a07499fd8fabd22ab817f70a1fe7d719d8736e"
+    },
+    "approved/crt-family/lean-term/AppIcon.iconset/icon_512x512@2x.png": {
+      "bytes": 1476885,
+      "sha256": "047586c8899a4e4c587ecd6bc1f3d15da2bb3a51a00b4b31728a1b1e29085bcb"
+    },
+    "approved/crt-family/lean-term/LeanTerm.icns": {
+      "bytes": 2390779,
+      "sha256": "a9a35f37412dfa8f832e2c14e1593ef5de0397b903da2a0fafecf1739f150baf"
+    },
+    "approved/crt-family/lean-term/app-icon-1024.png": {
+      "bytes": 1476885,
+      "sha256": "047586c8899a4e4c587ecd6bc1f3d15da2bb3a51a00b4b31728a1b1e29085bcb"
+    },
+    "approved/crt-family/lean-term/apple-touch-icon.png": {
+      "bytes": 42706,
+      "sha256": "ba2a77066fba66d6aa4270f04178c7c94ade9ffdc12b708403fb10da9f9d935c"
+    },
+    "approved/crt-family/lean-term/favicon-16x16.png": {
+      "bytes": 1285,
+      "sha256": "ac22b0adecc515bae7086edd321eadc11087638a67dfc71862660714811a93db"
+    },
+    "approved/crt-family/lean-term/favicon-32x32.png": {
+      "bytes": 2582,
+      "sha256": "c4bcce994e61273d4dadc0bd0409feee7cc7156f51fe86c3951aea167c42c08b"
+    },
+    "approved/crt-family/lean-term/favicon.ico": {
+      "bytes": 15086,
+      "sha256": "ec16ccd751b20bfc1be271e09dbc8262ea05c8588c33f8ca2e2a3fc7694a10fb"
+    },
+    "approved/crt-family/lean-term/favicon.svg": {
+      "bytes": 9483,
+      "sha256": "cca690959bdb835d78fea17267449eb1834f48c0c1b8333a37d76c8aeba7548a"
+    },
+    "approved/crt-family/lean-term/icon-128.png": {
+      "bytes": 22619,
+      "sha256": "36c83649cfa349e78cccb9027f6af9bb845cc20ca21ea0e813328da3e308dd06"
+    },
+    "approved/crt-family/lean-term/icon-16.png": {
+      "bytes": 1285,
+      "sha256": "ac22b0adecc515bae7086edd321eadc11087638a67dfc71862660714811a93db"
+    },
+    "approved/crt-family/lean-term/icon-180.png": {
+      "bytes": 42706,
+      "sha256": "ba2a77066fba66d6aa4270f04178c7c94ade9ffdc12b708403fb10da9f9d935c"
+    },
+    "approved/crt-family/lean-term/icon-192.png": {
+      "bytes": 47952,
+      "sha256": "8d664bf1c90a0949c55bfaae3faeb4aa7b2e76d40bd63452ead3a375583914ec"
+    },
+    "approved/crt-family/lean-term/icon-256.png": {
+      "bytes": 83697,
+      "sha256": "c1fd2f3eb99cdac103a7f8d86d65ac8cdf80b4735d3e92ed03c0343a6201b1df"
+    },
+    "approved/crt-family/lean-term/icon-32.png": {
+      "bytes": 2582,
+      "sha256": "c4bcce994e61273d4dadc0bd0409feee7cc7156f51fe86c3951aea167c42c08b"
+    },
+    "approved/crt-family/lean-term/icon-48.png": {
+      "bytes": 4445,
+      "sha256": "004b0bc2b1f8815ce2166ca291a58c30fd34e095f069aa876aec8b345eb3ef70"
+    },
+    "approved/crt-family/lean-term/icon-512.png": {
+      "bytes": 356946,
+      "sha256": "23ee02d8f12082de247b6e636aeda2eccf805250a78dcca560ccc447c85607ec"
+    },
+    "approved/crt-family/lean-term/icon-64.png": {
+      "bytes": 6936,
+      "sha256": "77dbe0029752830ae5214139a4747c20d48814ae995a3d97089dc97002689c58"
+    },
+    "approved/crt-family/lean-term/logo-mark.svg": {
+      "bytes": 30395,
+      "sha256": "f88581cbc526dfa49be02472a66235bb3212f9120168cf5dcdaad315b064f3e7"
+    },
+    "approved/crt-family/lean-term/safari-pinned-tab.svg": {
+      "bytes": 303,
+      "sha256": "32a055fd034c90b0284ec78efa4f56da324d5f1d0d3633c1bfe88ed90d075abc"
+    },
+    "approved/crt-family/lean-term/site.webmanifest": {
+      "bytes": 413,
+      "sha256": "4c5c69e3a31db179b434db57f703c61a4a23f7a08108e1669c4f83504d85e319"
+    },
+    "approved/crt-family/lean-term/symbol-monochrome.svg": {
+      "bytes": 311,
+      "sha256": "3e7f40cadf530adb1b0f593d9d9d4dc4ca744912adb61ac3411cfa175e075c79"
+    },
+    "approved/crt-family/lean-term/symbol.svg": {
+      "bytes": 306,
+      "sha256": "a30edcc91cf600ed9fd9a674f5a601f8a39517c85c3f3454bc91f5310a2065b2"
+    },
+    "approved/crt-family/lean-term/wordmark-on-dark.svg": {
+      "bytes": 35484,
+      "sha256": "e666782bb09f8c50339ddcd269c5377e3d2a3a068f860e561d73b52c20c14882"
+    },
+    "approved/crt-family/lean-term/wordmark-on-dark@2x.png": {
+      "bytes": 91020,
+      "sha256": "17574e24ccbe823162bf13655b90f91ac0ff91541c9eaee54952aa4559aec2f4"
+    },
+    "approved/crt-family/lean-term/wordmark-on-light.svg": {
+      "bytes": 35484,
+      "sha256": "fbbc33c43587a833e1f4b0010c452de649fd8738d6249a377f551ebc40e883ba"
+    },
+    "approved/crt-family/lean-term/wordmark-on-light@2x.png": {
+      "bytes": 91027,
+      "sha256": "b510412464f222a5a3d2c871810683b1fc65f2a8826dabfe4a716bbbcea4adbc"
+    }
+  }
+}

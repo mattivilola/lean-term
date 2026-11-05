@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible Lean Term problem.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App or source version
+      description: Include the source commit if building from main.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac chip
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the shell or terminal application involved.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

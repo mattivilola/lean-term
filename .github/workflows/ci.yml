@@ -1,0 +1,28 @@
+name: macOS
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Verify assets and scripts
+        run: |
+          python3 branding/verify-assets.py
+          python3 -m py_compile script/*.py benchmarks/*.py branding/*.py
+          bash -n script/*.sh
+          python3 -m unittest discover -s benchmarks -p 'test_*.py'
+      - name: Test
+        run: ./script/build_and_run.sh --test
+      - name: Build Release app
+        run: ./script/build_and_run.sh --build-only

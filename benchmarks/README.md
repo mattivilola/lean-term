@@ -1,6 +1,6 @@
 # Small macOS terminal experiment
 
-Build with `../script/build_and_run.sh` from the repository root. The app uses
+Build with `./script/build_and_run.sh --benchmark run` from the repository root. The app uses
 SwiftTerm's existing `LocalProcessTerminalView`, Menlo 13, 120 × 40 cells,
 10,000 scrollback lines and an opaque background. Select `--renderer metal`
 or `--renderer cg`. `--info /absolute/path.json` records the active renderer,
@@ -82,7 +82,7 @@ python3 benchmarks/run_output.py metal --label metal-gated
 
 Run these in a desktop-capable execution context, sequentially. Reference modes
 `ghostty` and `terminal` reuse the same workload; Ghostty expects the isolated
-configuration at `.cache/ghostty-benchmark.conf`. Terminal uses the task profile
+configuration at `benchmarks/results/ghostty-latency.conf`. Terminal uses the task profile
 in this directory and leaves the default profile unchanged. Record Ghostty's
 byte-based scrollback cap separately from the candidates' line cap. A reused
 reference process is identified and is never terminated by the helper.

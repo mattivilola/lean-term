@@ -9,7 +9,10 @@ let package = Package(
                  revision: "309adcc28bdf0e01f6403d04616323b379fb5635")
     ],
     targets: [
-        .executableTarget(name: "LeanTermBench", dependencies: ["SwiftTerm"])
+        .target(name: "LeanTermCore"),
+        .executableTarget(name: "LeanTerm", dependencies: ["LeanTermCore", "SwiftTerm"]),
+        .executableTarget(name: "LeanTermBench", dependencies: ["SwiftTerm"]),
+        .testTarget(name: "LeanTermCoreTests", dependencies: ["LeanTermCore"])
     ],
     swiftLanguageModes: [.v6]
 )

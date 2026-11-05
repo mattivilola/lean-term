@@ -1,5 +1,6 @@
 import AppKit
 import SwiftTerm
+import Darwin
 
 // A measurement window, not the eventual LeanTerm interface.
 @MainActor
@@ -94,6 +95,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, LocalProcessTerminalVi
     }
 }
 
+let bundleLockPath = Bundle.main.resourceURL!.appendingPathComponent("Build.lock").path
+let bundleLock = open(bundleLockPath, O_RDONLY)
+guard bundleLock >= 0, flock(bundleLock, LOCK_SH | LOCK_NB) == 0 else { exit(2) }
+defer { close(bundleLock) }
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

@@ -1,69 +1,49 @@
-# Approved Lean CRT family
+# Lean Term branding
 
-Matti selected **01 — CRT family** on 4 November 2026 and authorized the complete
-icon/logo/favicon pack, a new Lean VS Code app release, and updates to both sites.
+Lean Term uses an emerald CRT casing with a green pixel `>_` prompt. The artwork
+originated in the companion Lean VS Code project and now identifies the terminal;
+that editor uses a distinct teal braces icon.
 
-| Product | App icon | Meaning |
-|---|---|---|
-| Lean Term | Emerald CRT, green `>_` | Terminal |
-| Lean VS Code | Teal CRT, mint `{ }` | Code editor |
+All distributable terminal exports live in `approved/crt-family/lean-term/`.
 
-Lean Term inherits the exact former Lean VS Code ICNS artwork. The new editor
-artwork was generated with the built-in imagegen tool from the approved board.
-The original installed app was read for reference and has not been modified.
-
-## Canonical files
-
-The frozen delivery pack is `approved/crt-family/`. `manifest.json` records the
-SHA-256 and byte count of every file. Consumers should copy the appropriate
-product folder and verify the manifest before integrating it.
-
-| Use | File in each product folder |
+| Use | File |
 |---|---|
-| macOS application | `LeanTerm.icns` / `LeanVSCode.icns` |
-| Editable icon resolutions | `AppIcon.iconset/` |
-| Full-size artwork | `app-icon-1024.png` |
-| Header/footer mark | `logo-mark.svg` |
-| Full logo on a light surface | `wordmark-on-light.svg`, `wordmark-on-light@2x.png` |
-| Full logo on a dark surface | `wordmark-on-dark.svg`, `wordmark-on-dark@2x.png` |
-| Flat/vector symbol | `symbol.svg`, `symbol-monochrome.svg` |
-| Browser tab | `favicon.svg`, `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png` |
-| Apple home screen | `apple-touch-icon.png` |
-| Web app metadata | `site.webmanifest`, `icon-192.png`, `icon-512.png` |
-| Safari pinned tab | `safari-pinned-tab.svg` |
+| macOS app | `LeanTerm.icns` and `AppIcon.iconset/` |
+| Master artwork | `app-icon-1024.png` |
+| Logo mark | `logo-mark.svg` |
+| Full logo | `wordmark-on-light.svg`, `wordmark-on-dark.svg` and their `@2x.png` versions |
+| Browser tab | `favicon.svg`, `favicon.ico`, 16 px and 32 px PNGs |
+| Home screen / web metadata | `apple-touch-icon.png`, `site.webmanifest`, 192 px and 512 px PNGs |
+| Flat symbol / pinned tab | `symbol.svg`, `symbol-monochrome.svg`, `safari-pinned-tab.svg` |
 
-PNG sizes 16, 32, 48, 64, 128, 180, 192, 256 and 512 are also included.
-The CRT artwork is raster imagery; the SVG mark wrappers embed small PNGs for
-portable use. The flat symbols and outlined wordmark lettering are vector.
-Wordmarks do not require a font download. Use the light/dark versions according
-to the surface behind them.
+The CRT artwork is raster. SVG mark wrappers embed PNGs; flat symbols and outlined
+wordmark lettering are vector. No font files are distributed or downloaded.
+Use the light or dark wordmark for the surface behind it.
 
-## Integration
+## Verify or regenerate
 
-- Lean Term owns the emerald prompt icon from now on. Lean VS Code uses the teal
-  braces. Do not use the prompt as the editor's product logo after migration.
-- Keep existing bundle identifiers, storage and update identities.
-- Rebuild/sign/notarize Lean VS Code through its release workflow. Do not patch
-  icon resources inside the installed signed app.
-- Replace active product branding surfaces, not third-party extension logos or
-  generic programming-language/file icons.
-- Preserve both Sites project IDs and audiences. Update header/footer logos,
-  favicons, touch icons and existing brand-bearing metadata/images as appropriate.
-- Both sites should include a small Lean-family cross-promotion section linking
-  the sibling app with its approved icon and a short factual description.
-- Lean Term remains in development. Its source, local fixture, signed release,
-  and downloadable product are separate delivery states.
+Ordinary app builds use these checked-in exports and need no image tooling.
+Verify all 35 files against the SHA-256 and byte counts in `manifest.json`:
 
-## Sources and reproducibility
+```sh
+python3 branding/verify-assets.py
+```
 
-`review/` preserves the three review boards; only option 01 was selected.
-`sources/imagegen-prompts.json` records all prompts and the built-in mode.
-`sources/lean-vs-code-crt-master.png` preserves the editor generator output.
-`wordmark-paths.swift` exports outlined system-rendered lettering without
-redistributing font files; `build-assets.py` packages sizes/formats from the
-approved art. Native ICNS encoding needs a desktop-capable context on this Mac.
-`--skip-icns` regenerates web derivatives while retaining validated ICNS files.
+To deliberately regenerate derived sizes and wordmarks on macOS, install
+ImageMagick (`magick` must be on PATH), then run:
 
-The pack has been checked for exact sizes, alpha, valid SVG XML, ICNS decode,
-ICO frames and manifest hashes. Small-size previews are technical derivatives
-of the actual exports, not imagegen approximations.
+```sh
+swift branding/wordmark-paths.swift branding/sources
+python3 branding/build-assets.py
+python3 branding/verify-assets.py
+```
+
+The retained ICNS supplies the original macOS icon resolutions. The packager
+updates the manifest, so review the resulting artwork and diff before committing.
+
+## Reuse
+
+The project artwork is covered by the repository's [MIT license](../LICENSE),
+including modification and redistribution with its copyright/license notice.
+Please distinguish modified forks clearly so users can identify which app they
+are running. The license does not imply project endorsement.

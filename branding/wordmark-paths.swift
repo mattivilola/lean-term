@@ -41,7 +41,7 @@ func outline(_ text: String) -> (String, Double) {
 }
 
 var result: [String: [String: Any]] = [:]
-for name in ["Lean Term", "Lean VS Code"] {
+for name in ["Lean Term"] {
     let (path, width) = outline(name)
     result[name] = ["path": path, "width": width, "font": "HelveticaNeue-Bold", "size": 32]
 }

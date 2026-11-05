@@ -5,5 +5,15 @@ dist/
 benchmarks/fixtures/
 benchmarks/results/local/
 __pycache__/
-# Independent website repository managed in another chat.
+# The website is maintained as an independent repository.
 website/
+.codex/
+leanterm-plan.md
+docs/archive/
+branding/HANDOFFS.md
+branding/review/
+branding/sources/imagegen-prompts.json
+branding/sources/lean-vs-code-crt-master.png
+branding/approved/crt-family/lean-vs-code/
+branding/approved/crt-family/manifest.json
+script/desktop_bench.sh

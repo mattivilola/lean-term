@@ -71,7 +71,8 @@ def main():
     if not args.label.replace('-', '').replace('_', '').isalnum():
         parser.error('Use a simple label with letters, numbers, hyphens or underscores')
     prefix = ROOT / 'benchmarks/results' / args.label
-    if prefix.with_name(prefix.name + '-output.json').exists():
+    if any(prefix.with_name(prefix.name + suffix).exists()
+           for suffix in ('-output.json', '-idle.json', '-info.json', '-filled.json', '-soak.json')):
         raise FileExistsError('Keep previous readings; use a new label')
     local = ROOT / '.cache' / ('output-' + uuid.uuid4().hex[:8])
     local.mkdir(parents=True)
@@ -85,7 +86,7 @@ def main():
                   '--info', str(info), '--workload', command[1], *command[2:]]
         expected = '/LeanTermBench.app/Contents/MacOS/LeanTermBench'
     elif args.renderer == 'ghostty':
-        config = ROOT / '.cache/ghostty-benchmark.conf'
+        config = ROOT / 'benchmarks/results/ghostty-latency.conf'
         launch = ['/usr/bin/open', '-n', '/Applications/Ghostty.app', '--args',
                   '--config-default-files=false', '--config-file=' + str(config), '-e', *command]
         expected = '/Ghostty.app/Contents/MacOS/'
