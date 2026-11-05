@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3 — Native polish
+
+- SF Mono Regular 13 becomes the default for new configurations; existing font choices remain.
+- ⌘K clears both the visible screen and terminal scrollback, preserving input modes.
+- Compact optional CPU and memory sparklines for Lean Term itself.
+- Configurable automatic tab closing on shell exit and app quit after the last terminal closes.
+- Compact Appearance, Behavior and Updates settings pages.
+- Register sessions before starting their shells, including immediate-exit cases.
+
 ## 0.1.2 — First automatic update
 
 - First maintenance release delivered through the built-in signed updater.

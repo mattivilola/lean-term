@@ -12,7 +12,7 @@ and a little less distraction. Free and open source.
 
 [Website](https://leanterm.com) · [Build](#build-and-run) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
-**0.1.2** · Apple silicon · macOS 26+.
+**0.1.3** · Apple silicon · macOS 26+.
 [Releases and downloads](https://github.com/mattivilola/lean-term/releases).
 You can also build from source without a signing account.
 
@@ -21,16 +21,20 @@ You can also build from source without a signing account.
 - Runs your normal login shell, startup files and environment.
 - Native macOS windows and tabs, with independent terminal sessions.
 - Unicode text, terminal applications, selection, copy/paste and built-in Find.
-- Bounded 10,000-line scrollback; clear history without sending input to a program.
+- Bounded 10,000-line scrollback; clear screen and history without sending input to a program.
 - System/Light/Dark appearance, Forest and Graphite palettes, font size/family,
   cursor shape and optional Option-as-Meta, in a compact visual settings window.
+  SF Mono Regular 13 is the default; existing saved font choices are preserved.
+- Optional compact CPU/memory sparklines for the app process, plus configurable
+  close-on-shell-exit and quit-after-last-terminal behavior.
 - A branded About window and editable keyboard shortcuts with conflict checks.
 - Signed release builds include automatic updates through Sparkle.
 - Confirms closing live sessions and waits for owned shell cleanup on quit.
 - Remembers the last active window's position and size, fitting it to available displays.
 
 Swift + AppKit + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), explicitly
-using CoreGraphics/CoreText. No web runtime or app-owned idle polling. The
+using CoreGraphics/CoreText. No web runtime. The optional resource monitor uses one shared low-rate sampler
+and pauses when terminal windows are hidden. The
 [initial experiment](benchmarks/results/2026-11-04.md) informed this choice. The
 [first released-app check](benchmarks/results/2026-11-05.md) measured about 25 ms
 median typing response, 58.5 MiB idle GUI footprint and a 0.53 s warm window
@@ -92,14 +96,14 @@ pinned SwiftTerm checkout. Supported builds go through the script;
 | Close session | ⌘W |
 | Find / next / previous | ⌘F / ⌘G / ⇧⌘G |
 | Copy / paste / select all | ⌘C / ⌘V / ⌘A |
-| Clear scrollback, keeping the visible screen | ⌘K |
+| Clear screen and scrollback | ⌘K |
 | Larger / smaller / default text | ⌘+ / ⌘− / ⌘0 |
 | Next / previous tab (wraps) | ⌘→ / ⌘← |
 | Alternate next / previous tab | ⇧⌘] / ⇧⌘[ |
 | Shortcut reference and editor | ⌘? |
 | Settings | ⌘, |
 
-Open **Settings → Keyboard Shortcuts** or **Help → Keyboard Shortcuts** to
+Open **Settings → Behavior → Keyboard Shortcuts** or **Help → Keyboard Shortcuts** to
 change bindings or restore defaults. Settings save automatically in macOS preferences.
 New tabs use the last reported local working directory. Without shell directory
 reporting, that may remain the starting directory. No shell hooks are installed.
@@ -121,7 +125,7 @@ CoreGraphics selection, Unicode/ANSI search, resize, appearance settings, native
 tabs, normal exit and forced shutdown. It does not measure typing latency or
 substitute for manual IME and accessibility checks.
 
-Splits, editable TOML configuration, hot reload, metrics and
+Splits, editable TOML configuration, hot reload and
 session restoration are deferred. Keep additions focused and measure their cost.
 The separate [benchmark fixture](benchmarks/README.md) and raw experiment data
 remain available for reproducibility.

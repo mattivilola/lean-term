@@ -10,6 +10,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private let surface = TerminalSurface()
     private let status = NSTextField(labelWithString: "")
     private let dimensions = NSTextField(labelWithString: "")
+    let resourceStatus = ResourceStatusView()
     private let restart = NSButton(title: "New Session", target: nil, action: nil)
     private var fallback: DispatchWorkItem?
     private(set) var state: State = .starting
@@ -17,16 +18,21 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private var preferences: Preferences
     private let launch: ShellLaunch
     private var fullscreenTransition = false
+    private var didStart = false
     weak var app: AppDelegate?
     var terminationCount = 0
 
     var live: Bool { state == .running || state == .starting || state == .closing }
+    var isResourceDisplayVisible: Bool {
+        guard let window, window.isVisible, !window.isMiniaturized, window.occlusionState.contains(.visible) else { return false }
+        return window.tabGroup?.selectedWindow == nil || window.tabGroup?.selectedWindow === window
+    }
 
-    init(preferences: Preferences, directory: String? = nil, smoke: Bool = false) {
+    init(preferences: Preferences, directory: String? = nil) {
         self.preferences = preferences
         launch = ShellLaunch(directory: directory)
         currentDirectory = launch.directory
-        let font = NSFont(name: preferences.fontName, size: preferences.fontSize) ?? .monospacedSystemFont(ofSize: preferences.fontSize, weight: .regular)
+        let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
         let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
         terminal = LocalProcessTerminalView(frame: .zero, font: font,
             options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: Preferences.scrollbackLines))
@@ -50,12 +56,13 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         terminal.translatesAutoresizingMaskIntoConstraints = false
         terminal.setAccessibilityLabel("Terminal session")
         surface.addSubview(terminal)
-        let footer = NSStackView(views: [status, NSView(), restart, dimensions])
+        let footer = NSStackView(views: [status, NSView(), restart, resourceStatus, dimensions])
         footer.orientation = .horizontal; footer.spacing = 12
         footer.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(footer)
         status.font = .systemFont(ofSize: 11)
         status.lineBreakMode = .byTruncatingMiddle
+        status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         dimensions.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
         dimensions.setContentHuggingPriority(.required, for: .horizontal)
         restart.bezelStyle = .inline
@@ -83,6 +90,12 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         surface.layoutSubtreeIfNeeded()
         status.stringValue = launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
         window.center()
+    }
+
+    /// Register the controller with the app before a shell can synchronously exit.
+    func start(smoke: Bool = false) {
+        guard !didStart, state == .starting else { return }
+        didStart = true
         if smoke {
             terminal.startProcess(executable: "/bin/zsh", args: ["-f"], environment: launch.environment, currentDirectory: currentDirectory)
         } else {
@@ -118,7 +131,11 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     func windowDidBecomeKey(_ notification: Notification) {
         app?.recordActiveSession(self)
         savePlacement()
+        app?.refreshResourceMonitoring()
     }
+    func windowDidChangeOcclusionState(_ notification: Notification) { app?.refreshResourceMonitoring() }
+    func windowDidMiniaturize(_ notification: Notification) { app?.refreshResourceMonitoring() }
+    func windowDidDeminiaturize(_ notification: Notification) { app?.refreshResourceMonitoring() }
     func windowDidResignKey(_ notification: Notification) { savePlacement() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
     func windowWillEnterFullScreen(_ notification: Notification) { savePlacement(); fullscreenTransition = true }
@@ -126,7 +143,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
 
     func apply(_ value: Preferences) {
         preferences = value
-        let font = NSFont(name: value.fontName, size: value.fontSize) ?? .monospacedSystemFont(ofSize: value.fontSize, weight: .regular)
+        resourceStatus.isHidden = !value.showResourceUsage
+        let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
@@ -147,6 +165,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         status.textColor = .secondaryLabelColor
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
+        resourceStatus.applyAccent(theme.accent)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -160,7 +179,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         alert.buttons.last?.keyEquivalent = "\r"
         alert.beginSheetModal(for: sender) { [weak self] result in
             guard result == .alertFirstButtonReturn else { return }
-            self?.beginShutdown()
+            guard let self else { return }
+            if self.live { self.beginShutdown() } else { self.window?.close() }
         }
         return false
     }
@@ -208,13 +228,24 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         fallback?.cancel(); fallback = nil
         status.stringValue = exitCode == 0 ? "Session ended" : "Session ended · \(exitCode.map(String.init) ?? "signal")"
         restart.isHidden = false
-        if wasClosing { window?.close() }
+        // Preserve any outstanding close/quit sheet. Cancel must keep its window.
+        if wasClosing || (preferences.closeTabOnShellExit && app?.permitsAutomaticSessionClose == true && window?.attachedSheet == nil) {
+            window?.close()
+        }
         app?.sessionDidFinish()
     }
     func processFailedToStart(source: TerminalView, error: LocalProcessError) {
         state = .failed
         status.stringValue = "Couldn’t start the shell"
         restart.isHidden = false
+    }
+
+    func clearScreenAndScrollback() {
+        terminal.selectNone()
+        // Local parser output only: never send a control key/command to the shell.
+        // Keep terminal modes and the configured history capacity intact.
+        terminal.feed(text: "\u{1B}[H\u{1B}[2J")
+        terminal.clearScrollback()
     }
 
     @objc private func restartSession() {

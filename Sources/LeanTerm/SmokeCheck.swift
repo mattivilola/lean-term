@@ -8,23 +8,64 @@ final class SmokeCheck {
     private let report: URL
     private var checks: [String] = []
     private struct Failure: Error { let message: String }
+    private enum ExitPolicy: String {
+        case closeQuit = "close-quit"
+        case closeKeep = "close-keep"
+        case keepQuit = "keep-quit"
+        case keepKeep = "keep-keep"
+
+        var closesOnShellExit: Bool { self == .closeQuit || self == .closeKeep }
+        var quitsAfterLastSession: Bool { self == .closeQuit || self == .keepQuit }
+    }
+    private enum PolicyStage {
+        case automaticCloseThenQuit
+        case automaticCloseKeepApp
+        case waitingForRetainedExit
+        case manualCloseThenQuit
+        case manualCloseKeepApp
+        case checkingKeepAlive
+    }
+
+    private let hasPolicyArgument: Bool
+    private let requestedPolicy: String?
+    private var policy: ExitPolicy?
+    private var policyStage: PolicyStage?
+    private var policySession: TerminalWindow?
+    private var retainedExitVerified = false
+    private var explicitWindowCloseRequested = false
+    private var reportFinalized = false
+    private var reportPassed: Bool?
 
     init(app: AppDelegate, report: String) {
         self.app = app; self.report = URL(fileURLWithPath: report)
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--smoke-policy") {
+            hasPolicyArgument = true
+            let nextIndex = index + 1
+            requestedPolicy = nextIndex < arguments.count && !arguments[nextIndex].hasPrefix("--")
+                ? arguments[nextIndex] : nil
+        } else {
+            hasPolicyArgument = false
+            requestedPolicy = nil
+        }
     }
 
     func start() {
         Task { @MainActor in
             do {
-                try await run()
-                finish(passed: true)
-            } catch {
-                checks.append("FAILED: \(error)")
-                if let app {
-                    for session in Array(app.sessions.values) where session.live { session.beginShutdown() }
-                    try? await wait { !app.sessions.values.contains(where: \.live) }
+                if requestedPolicy == "quit-cancel" {
+                    try await runQuitCancellation()
+                } else if hasPolicyArgument {
+                    guard let requestedPolicy, let policy = ExitPolicy(rawValue: requestedPolicy) else {
+                        throw Failure(message: "Invalid --smoke-policy value: \(requestedPolicy ?? "missing")")
+                    }
+                    try await run(policy: policy)
+                } else {
+                    try await run()
+                    finish(passed: true)
                 }
-                finish(passed: false)
+            } catch {
+                await failAndCleanUp(error)
             }
         }
     }
@@ -32,6 +73,8 @@ final class SmokeCheck {
     private func run() async throws {
         guard let app, let first = app.newTerminal(smoke: true) else { throw Failure(message: "No native session") }
         try expect(!first.terminal.isUsingMetalRenderer, "CoreGraphics selected")
+        try expect(app.preferences.fontName == "SF Mono" && first.terminal.font.fontName == NSFont.monospacedSystemFont(ofSize: 13, weight: .regular).fontName,
+                   "SF Mono default resolves through the native system font API")
         first.terminal.send(txt: "printf '\\033[32mLEAN_TERM_RUNTIME_%s\\033[0m · café 日本語 👋\\n' 'OK'\r")
         try await wait { first.terminal.findNext("LEAN_TERM_RUNTIME_OK") }
         try expect(first.terminal.findNext("café 日本語"), "PTY echo, ANSI and Unicode output searchable")
@@ -52,12 +95,57 @@ final class SmokeCheck {
         first.terminal.performFindPanelAction(find)
         let hide = NSMenuItem(); hide.tag = NSTextFinder.Action.hideFindInterface.rawValue
         first.terminal.performTextFinderAction(hide)
-        first.terminal.clearScrollback()
-        try expect(first.terminal.findNext("LEAN_TERM_RUNTIME_OK"), "Clear Scrollback preserves the visible screen")
+        first.terminal.send(txt: "for n in {1..120}; do printf 'LT_OLD_ROW_%s\\n' $n; done; printf 'LT_VISIBLE_%s\\n' 'NOW'\r")
+        try await wait { first.terminal.findNext("LT_VISIBLE_NOW") }
+        try expect(first.terminal.findNext("LT_OLD_ROW_1"), "History marker is searchable before clear")
+        first.terminal.selectAll()
+        let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: first.window!.windowNumber,
+            context: nil, characters: "k", charactersIgnoringModifiers: "k", isARepeat: false, keyCode: 40)!
+        try expect(NSApp.mainMenu?.performKeyEquivalent(with: key) == true, "Cmd-K invokes the configured clear action")
+        try await wait { !first.terminal.findNext("LT_VISIBLE_NOW") && !first.terminal.findNext("LT_OLD_ROW_1") }
+        try expect(first.terminal.visibleRowsText(0..<first.terminal.terminalDimensions.rows).allSatisfy {
+            $0.trimmingCharacters(in: .whitespaces).isEmpty
+        } && !first.terminal.selectionActive, "Cmd-K clears the screen, history, search results and selection")
+        first.terminal.feed(text: "\u{1B}[?1049h\u{1B}[?2004hALT_CLEAR_TARGET")
+        try await wait { first.terminal.findNext("ALT_CLEAR_TARGET") }
+        first.clearScreenAndScrollback()
+        try await wait { !first.terminal.findNext("ALT_CLEAR_TARGET") }
+        let modes = first.terminal.terminalInputStateSnapshot()
+        try expect(modes?.isAlternateBuffer == true && modes?.bracketedPasteMode == true,
+                   "Clearing an alternate screen preserves terminal input modes")
+        first.terminal.feed(text: "\u{1B}[?1049l")
+        first.terminal.send(txt: "printf 'LT_AFTER_CLEAR_%s\\n' 'OK'\r")
+        try await wait { first.terminal.findNext("LT_AFTER_CLEAR_OK") }
+        try expect(true, "Shell remains usable after local clear")
+        try await wait { app.metricsMonitor.snapshot.cpuPercent != nil }
+        try expect(app.metricsMonitor.snapshot.physicalFootprintBytes != nil,
+                   "Visible status bar samples this app's CPU and physical footprint")
+        var disabled = app.preferences; disabled.showResourceUsage = false; app.updatePreferences(disabled)
+        try expect(app.metricsMonitor.snapshot.status == .paused && first.resourceStatus.isHidden,
+                   "Disabling resource graphs stops the shared sampler")
+        disabled.showResourceUsage = true; app.updatePreferences(disabled)
         first.terminal.send(txt: "exit\r")
         try await wait { first.state == .exited }
         try expect(first.terminationCount == 1, "Shell exit callback delivered once after reap")
+        first.window?.setContentSize(NSSize(width: 480, height: 320))
+        first.window?.contentView?.layoutSubtreeIfNeeded()
+        try expect(first.resourceStatus.frame.width == 228 && first.resourceStatus.frame.minX >= 0 &&
+                   first.resourceStatus.frame.maxX <= (first.resourceStatus.superview?.bounds.width ?? 0) + 0.1,
+                   "Compact status graphs fit a minimum-width ended session")
         first.window?.close()
+
+        // Keep one live anchor so auto-close can be checked without terminating the smoke host.
+        guard let anchor = app.newTerminal(smoke: true) else { throw Failure(message: "No exit-policy anchor") }
+        var closing = app.preferences; closing.closeTabOnShellExit = true; app.updatePreferences(closing)
+        guard let exits = app.newTerminal(tabOf: anchor, smoke: true) else { throw Failure(message: "No auto-close session") }
+        exits.terminal.send(txt: "exit\r")
+        try await wait { app.sessions[exits.id] == nil }
+        try expect(exits.terminationCount == 1 && app.sessions[anchor.id] != nil,
+                   "Shell exit closes only its tab when configured")
+        closing.closeTabOnShellExit = false; app.updatePreferences(closing)
+        anchor.beginShutdown()
+        try await wait { app.sessions[anchor.id] == nil }
 
         let savedFrame = WindowPlacement(defaults: app.defaults)?.fitted(to: NSScreen.screens.map(\.visibleFrame))
         guard let resistant = app.newTerminal(smoke: true) else { throw Failure(message: "No resistant session") }
@@ -69,6 +157,9 @@ final class SmokeCheck {
         try await wait { resistant.state == .exited }
         try expect(resistant.terminationCount == 1, "HUP/TERM-resistant child force-closes through the safe reaper")
 
+        // Cancelling Quit can restore another application’s activation. Reassert
+        // the interactive foreground context before testing tab-key navigation.
+        NSApp.activate(ignoringOtherApps: true)
         guard let a = app.newTerminal(smoke: true), let b = app.newTerminal(tabOf: a, smoke: true) else {
             throw Failure(message: "No tab group")
         }
@@ -108,14 +199,121 @@ final class SmokeCheck {
         }
         throw Failure(message: "Timed out waiting for native session state")
     }
+    private func runQuitCancellation() async throws {
+        guard let app else { throw Failure(message: "No app for cancellation check") }
+        var value = app.preferences
+        value.closeTabOnShellExit = true; value.quitAfterLastSession = true
+        value.showResourceUsage = false
+        app.updatePreferences(value)
+        guard let first = app.newTerminal(smoke: true) else { throw Failure(message: "No cancellation session") }
+        let quitEvent = Timer(timeInterval: 0.05, repeats: false) { _ in
+            MainActor.assumeIsolated { NSApp.terminate(nil) }
+        }
+        RunLoop.main.add(quitEvent, forMode: .common)
+        try await wait { first.window?.attachedSheet != nil }
+        first.terminal.send(txt: "exit\r")
+        try await wait { first.state == .exited }
+        try expect(first.terminationCount == 1 && app.sessions[first.id] != nil,
+                   "A shell finishing during quit preserves its confirmation window")
+        guard let sheet = first.window?.attachedSheet else { throw Failure(message: "Quit sheet disappeared") }
+        first.window?.endSheet(sheet, returnCode: .alertSecondButtonReturn)
+        try await wait { first.window?.attachedSheet == nil && app.permitsAutomaticSessionClose }
+        try await Task.sleep(for: .milliseconds(350))
+        try expect(app.sessions[first.id] != nil, "Cancel quit retains finished output instead of quitting again")
+        value.closeTabOnShellExit = false; value.quitAfterLastSession = false
+        app.updatePreferences(value)
+        first.window?.close()
+        finish(passed: true)
+    }
+
+    private func run(policy: ExitPolicy) async throws {
+        guard let app else { throw Failure(message: "No app for exit policy") }
+        self.policy = policy
+        var value = app.preferences
+        value.closeTabOnShellExit = policy.closesOnShellExit
+        value.quitAfterLastSession = policy.quitsAfterLastSession
+        value.showResourceUsage = false
+        app.updatePreferences(value)
+        guard let session = app.newTerminal(smoke: true) else { throw Failure(message: "No policy session") }
+        policySession = session
+        policyStage = policy.closesOnShellExit
+            ? (policy.quitsAfterLastSession ? .automaticCloseThenQuit : .automaticCloseKeepApp)
+            : .waitingForRetainedExit
+        session.terminal.send(txt: "exit\r")
+        if policy.closesOnShellExit {
+            if policy.quitsAfterLastSession {
+                try await wait { self.reportFinalized }
+                return
+            }
+            try await wait { app.sessions[session.id] == nil }
+            try expect(session.terminationCount == 1, "Natural shell exit closed its tab once")
+        } else {
+            try await wait { session.state == .exited }
+            try await Task.sleep(for: .milliseconds(350))
+            try expect(app.sessions[session.id] != nil && session.window?.isVisible == true,
+                       "Keep-open policy retains final output after shell exit")
+            retainedExitVerified = true
+            explicitWindowCloseRequested = true
+            policyStage = policy.quitsAfterLastSession ? .manualCloseThenQuit : .manualCloseKeepApp
+            session.window?.close()
+            if policy.quitsAfterLastSession {
+                try await wait { self.reportFinalized }
+                return
+            }
+            try await wait { app.sessions[session.id] == nil }
+        }
+        policyStage = .checkingKeepAlive
+        try await Task.sleep(for: .milliseconds(350))
+        try expect(app.sessions.isEmpty && session.terminationCount == 1,
+                   "Quit-last disabled keeps the app alive after the last terminal closes")
+        finish(passed: true)
+    }
+
+    /// Called only when the real NSApplication termination path is completing.
+    func willTerminate() {
+        guard hasPolicyArgument, !reportFinalized else { return }
+        let stageAllowsQuit = policyStage == .automaticCloseThenQuit || policyStage == .manualCloseThenQuit
+        let retainedCaseCorrect = policy?.closesOnShellExit == true || (retainedExitVerified && explicitWindowCloseRequested)
+        let passed = policy?.quitsAfterLastSession == true && stageAllowsQuit && retainedCaseCorrect &&
+            app?.sessions.isEmpty == true && policySession?.state == .exited && policySession?.terminationCount == 1
+        checks.append(passed ? "Last terminal closure naturally terminated NSApplication" : "FAILED: unexpected app termination during exit-policy check")
+        writeReport(passed: passed, automaticTerminationObserved: true)
+    }
+
+    private func failAndCleanUp(_ error: Error) async {
+        guard !reportFinalized else { return }
+        checks.append("FAILED: \(error)")
+        writeReport(passed: false)
+        if let app {
+            var value = app.preferences
+            value.quitAfterLastSession = false; value.closeTabOnShellExit = false
+            app.updatePreferences(value)
+            for session in Array(app.sessions.values) where session.live { session.beginShutdown() }
+            try? await wait { !app.sessions.values.contains(where: \.live) }
+            for session in Array(app.sessions.values) { session.window?.close() }
+        }
+        NSApp.terminate(nil)
+    }
+
     private func finish(passed: Bool) {
-        let result: [String: Any] = ["passed": passed, "checks": checks, "renderer": "CoreGraphics",
+        guard !reportFinalized else { return }
+        writeReport(passed: passed)
+        NSApp.terminate(nil)
+    }
+    private func writeReport(passed: Bool, automaticTerminationObserved: Bool = false) {
+        guard !reportFinalized else { return }
+        reportFinalized = true; reportPassed = passed
+        var result: [String: Any] = ["passed": passed, "checks": checks, "renderer": "CoreGraphics",
                                    "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development",
                                    "sessionCount": app?.sessions.count ?? -1]
+        if requestedPolicy == "quit-cancel" { result["scenario"] = "quit-cancel" }
+        if let policy {
+            result["exitPolicy"] = policy.rawValue
+            result["automaticTerminationObserved"] = automaticTerminationObserved
+        }
         do {
             let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: report, options: .atomic)
         } catch { fputs("Could not write native smoke report: \(error)\n", stderr) }
-        NSApp.terminate(nil)
     }
 }

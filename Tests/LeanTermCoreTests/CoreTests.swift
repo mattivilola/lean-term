@@ -37,6 +37,7 @@ import Testing
     #expect(Preferences.validFontSize(.nan) == 13)
     var value = Preferences()
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
+    value.showResourceUsage = false; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }
@@ -106,4 +107,27 @@ import Testing
     #expect(ShortcutConfiguration(defaults: defaults) == ShortcutConfiguration())
     Preferences.reset(in: defaults)
     #expect(defaults.object(forKey: "shortcuts") == nil)
+}
+
+@Test func sessionExitPreferencesPreserveExistingDefaultsAndPersistIndependently() throws {
+    let name = "LeanTermTests." + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(!Preferences(defaults: defaults).closeTabOnShellExit)
+    #expect(!Preferences(defaults: defaults).quitAfterLastSession)
+    #expect(Preferences(defaults: defaults).showResourceUsage)
+    #expect(Preferences(defaults: defaults).fontName == "SF Mono")
+    #expect(Preferences(defaults: defaults).fontSize == 13)
+    defaults.set("Menlo", forKey: "fontName")
+    #expect(Preferences(defaults: defaults).fontName == "Menlo")
+    for close in [false, true] {
+        for quit in [false, true] {
+            var prefs = Preferences()
+            prefs.closeTabOnShellExit = close; prefs.quitAfterLastSession = quit
+            prefs.save(to: defaults)
+            #expect(Preferences(defaults: defaults) == prefs)
+        }
+    }
+    Preferences.reset(in: defaults)
+    #expect(Preferences(defaults: defaults) == Preferences())
 }

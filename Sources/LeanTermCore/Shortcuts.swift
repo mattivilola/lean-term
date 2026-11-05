@@ -56,7 +56,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .find: "Find"
         case .findNext: "Find Next"
         case .findPrevious: "Find Previous"
-        case .clearScrollback: "Clear Scrollback"
+        case .clearScrollback: "Clear Screen and Scrollback"
         case .largerText: "Larger Text"
         case .smallerText: "Smaller Text"
         case .defaultText: "Default Text Size"

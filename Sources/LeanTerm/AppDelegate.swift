@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var quitApproved = false
     private var lastActiveSessionID: UUID?
     private var smokeCheck: SmokeCheck?
+    private var lastSessionQuitQueued = false
+    var permitsAutomaticSessionClose: Bool { !terminationPending }
+    let metricsMonitor = ProcessMetricsMonitor()
     lazy var updates = Updates(disabled: smokeDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
 
@@ -40,6 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = true
+        metricsMonitor.onChange = { [weak self] snapshot in
+            guard let self, self.preferences.showResourceUsage else { return }
+            for session in self.sessions.values where session.isResourceDisplayVisible {
+                session.resourceStatus.update(snapshot)
+            }
+        }
         buildMenus()
         applyPreferences()
         if let report = argument("--smoke-test") {
@@ -61,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @discardableResult
     func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, smoke: Bool = false) -> TerminalWindow? {
         guard !terminationPending else { return nil }
-        let session = TerminalWindow(preferences: preferences, directory: directory, smoke: smoke)
+        let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
         let placement = WindowPlacement(defaults: defaults)
         session.restorePlacement(placement, tabOf: tabOf)
@@ -70,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             parent.addTabbedWindow(window, ordered: .above)
         }
         session.present()
+        session.start(smoke: smoke)
+        refreshResourceMonitoring()
         return session
     }
     @objc func newWindow(_ sender: Any?) { newTerminal(directory: activeSession?.currentDirectory) }
@@ -88,8 +99,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         next.makeKeyAndOrderFront(nil)
     }
     func remove(_ session: TerminalWindow) {
-        sessions.removeValue(forKey: session.id)
+        guard sessions.removeValue(forKey: session.id) != nil else { return }
         sessionDidFinish()
+        refreshResourceMonitoring()
+        scheduleLastSessionQuit()
+    }
+    private func scheduleLastSessionQuit() {
+        guard preferences.quitAfterLastSession, sessions.isEmpty, !terminationPending, !lastSessionQuitQueued else { return }
+        lastSessionQuitQueued = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.lastSessionQuitQueued = false
+            guard self.preferences.quitAfterLastSession, self.sessions.isEmpty, !self.terminationPending else { return }
+            NSApp.terminate(nil)
+        }
     }
     func sessionDidFinish() {
         if quitApproved && !sessions.values.contains(where: \.live) {
@@ -110,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return true
     }
     func applicationWillTerminate(_ notification: Notification) {
+        smokeCheck?.willTerminate()
+        metricsMonitor.setRunning(false)
         if let smokeDefaultsDomain { defaults.removePersistentDomain(forName: smokeDefaultsDomain) }
     }
 
@@ -119,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })?.savePlacement()
         guard !live.isEmpty else { return .terminateNow }
         terminationPending = true
+        refreshResourceMonitoring()
         let alert = NSAlert()
         alert.messageText = live.count == 1 ? "Quit this terminal session?" : "Quit \(live.count) terminal sessions?"
         alert.informativeText = "The shells and programs running in these terminals will be stopped."
@@ -133,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func finishQuitConfirmation(_ response: NSApplication.ModalResponse) {
         guard response == .alertFirstButtonReturn else {
             terminationPending = false
+            refreshResourceMonitoring()
             NSApp.reply(toApplicationShouldTerminate: false)
             return
         }
@@ -178,6 +205,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if NSApp.appearance?.name != .darkAqua { NSApp.appearance = NSAppearance(named: .darkAqua) }
         }
         for session in sessions.values { session.apply(preferences) }
+        refreshResourceMonitoring()
+    }
+    func refreshResourceMonitoring() {
+        metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })
+        for session in sessions.values where preferences.showResourceUsage && session.isResourceDisplayVisible {
+            session.resourceStatus.update(metricsMonitor.snapshot)
+        }
     }
     @objc private func largerFont(_ sender: Any?) { changeFont(by: 1) }
     @objc private func smallerFont(_ sender: Any?) { changeFont(by: -1) }
@@ -187,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func changeFont(by delta: Double) {
         var value = preferences; value.fontSize += delta; updatePreferences(value)
     }
-    @objc private func clearScrollback(_ sender: Any?) { activeSession?.terminal.clearScrollback() }
+    @objc func clearScreenAndScrollback(_ sender: Any?) { activeSession?.clearScreenAndScrollback() }
     @objc private func about(_ sender: Any?) {
         if aboutWindow == nil { aboutWindow = AboutWindow() }
         aboutWindow?.showWindow(nil)
@@ -198,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if [#selector(nextTab), #selector(previousTab)].contains(menuItem.action) {
             return activeSession != nil && !terminationPending
         }
-        if [#selector(clearScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
+        if [#selector(clearScreenAndScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
             return activeSession != nil
         }
         return !terminationPending
@@ -250,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(edit, "Find Next", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.nextMatch.rawValue, shortcut: .findNext)
         add(edit, "Find Previous", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.previousMatch.rawValue, shortcut: .findPrevious)
         let terminal = group("Terminal")
-        add(terminal, "Clear Scrollback", #selector(clearScrollback), target: self, shortcut: .clearScrollback)
+        add(terminal, "Clear Screen and Scrollback", #selector(clearScreenAndScrollback), target: self, shortcut: .clearScrollback)
         terminal.addItem(.separator())
         add(terminal, "Larger Text", #selector(largerFont), target: self, shortcut: .largerText)
         add(terminal, "Smaller Text", #selector(smallerFont), target: self, shortcut: .smallerText)

@@ -2,7 +2,7 @@
 
 Lean Term uses Swift and AppKit around SwiftTerm's existing local-process terminal
 view. CoreGraphics/CoreText is explicitly selected. The app adds no renderer,
-parser, PTY reader, input encoding layer or repeating metrics/appearance timer.
+parser, PTY reader or input encoding layer. Appearance changes remain event-driven.
 
 - `AppDelegate` owns menus, preferences, windows and aggregate quit coordination.
 - `TerminalWindow` owns one SwiftTerm view and its shell. Native tabs group ordinary
@@ -72,3 +72,24 @@ downloading and installation. Development and smoke builds do not start it.
 Sparkle's quit request passes through the same asynchronous session confirmation
 and cleanup path as ordinary quit. Private signing keys stay in Keychain; release
 scripts publish only verified, signed and notarized artifacts.
+
+## Resource footer and session exit preferences (0.1.3)
+
+One app-owned process sampler reads this GUI process’s CPU counters and physical
+footprint once per second while a terminal is visible. It stops when disabled,
+all terminals are hidden/occluded/minimized, or termination is pending. One-core
+CPU percentages use Mach ticks for both CPU and elapsed time; child processes
+are excluded. Footer views render only their own small, unanimated 60-sample
+sparklines, with zero-based scales and gaps across pauses.
+
+Close-on-shell-exit and quit-after-last-session are independent opt-in settings;
+missing values retain the existing keep-open behavior. Launch failures remain
+visible. Sessions are registered before starting the shell. Natural exit closes
+a configured tab only after reap/output drain, while an outstanding confirmation
+sheet keeps its window. Cancel retains output from a shell that finished during
+the quit prompt. Last-session quit is queued once, rechecks for newly opened
+sessions, and uses normal NSApplication termination so updater behavior is kept.
+
+Cmd-K feeds local erase-display/cursor-home operations and discards normal
+scrollback through SwiftTerm’s supported APIs. It never sends a key or command
+to the child process, never resets terminal modes, and clears stale selection.

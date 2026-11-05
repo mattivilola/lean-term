@@ -16,10 +16,13 @@ public struct Preferences: Equatable, Sendable {
 
     public var appearance: Appearance = .system
     public var palette: Palette = .forest
-    public var fontName = "Menlo"
+    public var fontName = "SF Mono"
     public var fontSize: Double = 13
     public var cursor: Cursor = .bar
     public var optionAsMeta = false
+    public var showResourceUsage = true
+    public var closeTabOnShellExit = false
+    public var quitAfterLastSession = false
     public static let scrollbackLines = 10_000
 
     public init() {}
@@ -27,11 +30,14 @@ public struct Preferences: Equatable, Sendable {
     public init(defaults: UserDefaults) {
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
         palette = Palette(rawValue: defaults.string(forKey: "palette") ?? "") ?? .forest
-        fontName = defaults.string(forKey: "fontName") ?? "Menlo"
+        fontName = defaults.string(forKey: "fontName") ?? "SF Mono"
         let size = defaults.object(forKey: "fontSize") as? Double ?? 13
         fontSize = Self.validFontSize(size)
         cursor = Cursor(rawValue: defaults.string(forKey: "cursor") ?? "") ?? .bar
         optionAsMeta = defaults.bool(forKey: "optionAsMeta")
+        showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
+        closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
+        quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
     }
 
     public static func validFontSize(_ value: Double) -> Double {
@@ -39,7 +45,7 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -51,5 +57,8 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(Self.validFontSize(fontSize), forKey: "fontSize")
         defaults.set(cursor.rawValue, forKey: "cursor")
         defaults.set(optionAsMeta, forKey: "optionAsMeta")
+        defaults.set(showResourceUsage, forKey: "showResourceUsage")
+        defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
+        defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
     }
 }

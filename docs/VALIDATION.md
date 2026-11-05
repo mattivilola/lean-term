@@ -76,3 +76,27 @@ GUI footprint was 58.5 / 81.2 MiB idle/filled. Warm window appearance median was
 0.533 s. These endpoints and the historical comparison limits are explicit;
 physical key-to-photon, first-paint/shell-ready, cold-cache and long-soak results
 remain unmeasured. The installed app binary was unchanged by testing.
+
+The benchmark marketing publication is complete: leanterm.com Site version 10,
+website source `5f1fa39ba2ff5e4af39fc361b7aebd1f77aec8bb`, deployment
+`appgdep_6aeca98935188191b44e4cdf5c4b8bec`. The live home and benchmarks pages
+link the frozen evidence revision `5607624c7b8e534a71c649159067c8be85c189fa` and
+label the tested app as 0.1.2. Later app features are not represented by that run.
+
+## 0.1.3 — Native polish validation
+
+All 12 core tests passed, including preference compatibility, independent exit
+policies, CPU counter arithmetic and bounded resource histories. The native
+integration harness passed 26 checks on the built app: actual PTY output, the
+native SF Mono font API, Cmd-K screen/history/search/selection clearing, retained
+alternate-screen input modes, usable shell input after clear, the resource
+sampler and its disabled state, minimum-width footer layout, shell cleanup,
+window restoration and wrapping tab navigation.
+
+Four separate app launches exercised all combinations of close-on-shell-exit
+and quit-after-last-session. Both quit-enabled cases observed real application
+termination. A fifth launch verified that a shell exiting during the quit
+confirmation preserves its window and that Cancel keeps its final output.
+Every test used isolated preferences and owned test shells; no user shell files
+were changed. The Release build passed. These checks establish functionality,
+not new latency results: the published performance measurements remain for 0.1.2.

@@ -11,13 +11,18 @@ final class SettingsWindow: NSWindowController {
     private let sizeLabel = NSTextField(labelWithString: "13 pt")
     private let cursor = NSPopUpButton()
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
+    private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
+    private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
+    private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     private let automaticDownloads = NSButton(checkboxWithTitle: "Download updates in the background", target: nil, action: nil)
+    private let sections = NSSegmentedControl(labels: ["Appearance", "Behavior", "Updates"], trackingMode: .selectOne, target: nil, action: nil)
+    private var pages: [NSView] = []
 
     init(app: AppDelegate) {
         self.app = app
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: app.updates.available ? 595 : 510),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 540),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -32,68 +37,85 @@ final class SettingsWindow: NSWindowController {
         title.font = .systemFont(ofSize: 20, weight: .semibold)
         let subtitle = NSTextField(labelWithString: "A few good defaults. Make them yours.")
         subtitle.textColor = .secondaryLabelColor
-        let heading = NSStackView(views: [icon, NSStackView(views: [title, subtitle])])
-        (heading.arrangedSubviews[1] as? NSStackView)?.orientation = .vertical
-        (heading.arrangedSubviews[1] as? NSStackView)?.alignment = .leading
-        heading.spacing = 14
+        let names = Self.vertical([title, subtitle], spacing: 4)
+        let heading = NSStackView(views: [icon, names]); heading.spacing = 14
+
         for control in [appearance, palette] { control.target = self; control.action = #selector(changed) }
-        font.addItems(withTitles: ["Menlo", "SF Mono", "Monaco", "Courier"])
+        font.addItems(withTitles: ["SF Mono", "Menlo", "Monaco", "Courier"])
         font.target = self; font.action = #selector(changed)
         cursor.addItems(withTitles: Preferences.Cursor.allCases.map(\.title))
         cursor.target = self; cursor.action = #selector(changed)
-        size.target = self; size.action = #selector(changed)
-        size.isContinuous = true
+        size.target = self; size.action = #selector(changed); size.isContinuous = true
         size.setAccessibilityLabel("Font size")
         sizeLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         sizeLabel.widthAnchor.constraint(equalToConstant: 42).isActive = true
         let sizeRow = NSStackView(views: [size, sizeLabel]); sizeRow.spacing = 10
         size.widthAnchor.constraint(equalToConstant: 210).isActive = true
-        option.target = self; option.action = #selector(changed)
-        let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
-        shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
-        let keyboard = NSStackView(views: [option, shortcuts])
-        keyboard.orientation = .vertical; keyboard.alignment = .leading; keyboard.spacing = 6
-        var rows: [[NSView]] = [
+        let appearanceGrid = Self.grid([
             [NSTextField(labelWithString: "Appearance"), appearance],
             [NSTextField(labelWithString: "Palette"), palette],
             [NSTextField(labelWithString: "Font"), font],
             [NSTextField(labelWithString: "Text size"), sizeRow],
-            [NSTextField(labelWithString: "Cursor"), cursor],
-            [NSTextField(labelWithString: "Keyboard"), keyboard]
-        ]
-        if app.updates.available {
-            automaticChecks.target = self; automaticChecks.action = #selector(updateSettingsChanged)
-            automaticDownloads.target = self; automaticDownloads.action = #selector(updateSettingsChanged)
-            let note = NSTextField(labelWithString: "Checks on launch and hourly. Installs when you quit.")
-            note.font = .systemFont(ofSize: 10); note.textColor = .secondaryLabelColor
-            let controls = NSStackView(views: [automaticChecks, automaticDownloads, note])
-            controls.orientation = .vertical; controls.alignment = .leading; controls.spacing = 6
-            rows.append([NSTextField(labelWithString: "Updates"), controls])
-        }
-        let grid = NSGridView(views: rows)
-        grid.rowSpacing = 15; grid.columnSpacing = 22
-        grid.column(at: 0).xPlacement = .trailing
-        grid.column(at: 1).xPlacement = .leading
-        grid.yPlacement = .center
-        preview.isEditable = false
-        preview.isSelectable = false
+            [NSTextField(labelWithString: "Cursor"), cursor]
+        ])
+        preview.isEditable = false; preview.isSelectable = false
         preview.textContainerInset = NSSize(width: 14, height: 12)
         preview.wantsLayer = true; preview.layer?.cornerRadius = 10
         preview.heightAnchor.constraint(equalToConstant: 82).isActive = true
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
+        let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
+
+        for button in [option, closeOnExit, quitAfterLast, resources] { button.target = self; button.action = #selector(changed) }
+        let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
+        shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
+        let keyboard = Self.vertical([option, shortcuts], spacing: 6)
+        let sessions = Self.vertical([closeOnExit, quitAfterLast,
+            Self.note("Turn off automatic closing to review final output. Applies to future shell exits.")], spacing: 7)
+        let monitoring = Self.vertical([resources,
+            Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
+        let behaviorPage = Self.grid([
+            [NSTextField(labelWithString: "Keyboard"), keyboard],
+            [NSTextField(labelWithString: "Sessions"), sessions],
+            [NSTextField(labelWithString: "Status bar"), monitoring]
+        ])
+        let updatesPage: NSView
+        if app.updates.available {
+            for control in [automaticChecks, automaticDownloads] { control.target = self; control.action = #selector(updateSettingsChanged) }
+            let checkNow = NSButton(title: "Check for Updates…", target: app.updates, action: #selector(Updates.checkForUpdates(_:)))
+            checkNow.bezelStyle = .rounded; checkNow.controlSize = .small
+            updatesPage = Self.vertical([automaticChecks, automaticDownloads,
+                Self.note("Checks on launch and about hourly. Installation respects your session-close confirmation."), checkNow], spacing: 14)
+        } else {
+            updatesPage = Self.vertical([NSTextField(labelWithString: "Updates are available in installed release builds.")], spacing: 14)
+        }
+
+        pages = [appearancePage, behaviorPage, updatesPage]
+        let pageContainer = NSView()
+        for (index, page) in pages.enumerated() {
+            page.translatesAutoresizingMaskIntoConstraints = false
+            page.isHidden = index != 0
+            pageContainer.addSubview(page)
+            NSLayoutConstraint.activate([
+                page.leadingAnchor.constraint(equalTo: pageContainer.leadingAnchor),
+                page.topAnchor.constraint(equalTo: pageContainer.topAnchor),
+                page.trailingAnchor.constraint(lessThanOrEqualTo: pageContainer.trailingAnchor)
+            ])
+        }
+        pageContainer.heightAnchor.constraint(equalToConstant: 300).isActive = true
+        sections.selectedSegment = 0; sections.target = self; sections.action = #selector(sectionChanged)
         let reset = NSButton(title: "Restore Defaults", target: self, action: #selector(resetDefaults))
         reset.bezelStyle = .inline
-        let note = NSTextField(labelWithString: "Changes apply to all sessions and save automatically.")
+        let note = NSTextField(labelWithString: "Changes save automatically.")
         note.font = .systemFont(ofSize: 11); note.textColor = .secondaryLabelColor
         let bottom = NSStackView(views: [note, NSView(), reset]); bottom.spacing = 8
-        let stack = NSStackView(views: [heading, grid, preview, bottom])
-        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 22
+        let stack = Self.vertical([heading, sections, pageContainer, bottom], spacing: 22)
         stack.translatesAutoresizingMaskIntoConstraints = false
         window.contentView?.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30),
             stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30),
             stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 26),
+            pageContainer.widthAnchor.constraint(equalTo: stack.widthAnchor),
             bottom.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
         window.center()
@@ -102,6 +124,28 @@ final class SettingsWindow: NSWindowController {
     }
     required init?(coder: NSCoder) { fatalError("Programmatic windows only") }
 
+    private static func vertical(_ views: [NSView], spacing: CGFloat) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = spacing
+        return stack
+    }
+    private static func grid(_ rows: [[NSView]]) -> NSGridView {
+        let grid = NSGridView(views: rows)
+        grid.rowSpacing = 15; grid.columnSpacing = 22
+        grid.column(at: 0).xPlacement = .trailing
+        grid.column(at: 1).xPlacement = .leading
+        grid.yPlacement = .center
+        return grid
+    }
+    private static func note(_ text: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 11); label.textColor = .secondaryLabelColor
+        label.widthAnchor.constraint(equalToConstant: 290).isActive = true
+        return label
+    }
+    @objc private func sectionChanged() {
+        for (index, page) in pages.enumerated() { page.isHidden = index != sections.selectedSegment }
+    }
     func refresh() {
         guard let app else { return }
         let value = app.preferences
@@ -111,13 +155,16 @@ final class SettingsWindow: NSWindowController {
         size.doubleValue = value.fontSize; sizeLabel.stringValue = "\(Int(value.fontSize)) pt"
         cursor.selectItem(withTitle: value.cursor.title)
         option.state = value.optionAsMeta ? .on : .off
+        closeOnExit.state = value.closeTabOnShellExit ? .on : .off
+        quitAfterLast.state = value.quitAfterLastSession ? .on : .off
+        resources.state = value.showResourceUsage ? .on : .off
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = TerminalTheme(palette: value.palette, dark: dark)
         preview.backgroundColor = theme.background
         preview.string = "❯ echo 'Less noise. More flow.'\nLess noise. More flow."
-        preview.font = NSFont(name: value.fontName, size: min(value.fontSize, 16)) ?? .monospacedSystemFont(ofSize: 13, weight: .regular)
+        preview.font = TerminalFont.make(name: value.fontName, size: min(value.fontSize, 16))
         preview.textColor = theme.foreground
         preview.textStorage?.addAttribute(.foregroundColor, value: theme.accent, range: NSRange(location: 0, length: 1))
     }
@@ -126,10 +173,13 @@ final class SettingsWindow: NSWindowController {
         var value = app.preferences
         value.appearance = Preferences.Appearance.allCases[max(0, appearance.selectedSegment)]
         value.palette = Preferences.Palette.allCases[max(0, palette.selectedSegment)]
-        value.fontName = font.titleOfSelectedItem ?? "Menlo"
+        value.fontName = font.titleOfSelectedItem ?? "SF Mono"
         value.fontSize = size.doubleValue.rounded()
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
         value.optionAsMeta = option.state == .on
+        value.closeTabOnShellExit = closeOnExit.state == .on
+        value.quitAfterLastSession = quitAfterLast.state == .on
+        value.showResourceUsage = resources.state == .on
         app.updatePreferences(value)
     }
     @objc private func updateSettingsChanged() {
