@@ -100,3 +100,19 @@ confirmation preserves its window and that Cancel keeps its final output.
 Every test used isolated preferences and owned test shells; no user shell files
 were changed. The Release build passed. These checks establish functionality,
 not new latency results: the published performance measurements remain for 0.1.2.
+
+Version 0.1.3 was signed, notarized, stapled and published from source
+`b294fc5903dbee45ddf601020b6adb027111ef9c` after exact-source macOS CI run
+`42073398151` passed. Apple submission
+`707a126f-5bb3-4a72-9164-28a412145f57` returned Accepted; Gatekeeper and both
+Sparkle signatures passed. All three uploaded assets were downloaded and their
+sizes and hashes matched before publication. The release ZIP is 5,306,718 bytes,
+SHA-256 `5cd703a75e92ae437b19cbd89e9f2e76f6a7416920c051aed2ea4af84417094c`.
+
+The installed 0.1.2 app discovered and downloaded the public 0.1.3 update.
+After normal session-close confirmation, Sparkle installed and relaunched it.
+About showed 0.1.3. Settings showed the explicitly selected SF Mono 13 pt and
+enabled exit policies/resource graphs. The running footer displayed live CPU
+and memory readings. The installed executable matched the staged executable
+byte for byte and its complete code signature verified. The new default font
+does not overwrite other users’ saved font choices.
