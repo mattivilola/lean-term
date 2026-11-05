@@ -16,6 +16,7 @@ final class ActivityScannerView: NSView {
     private let replicator = CAReplicatorLayer()
     private let blob = CAGradientLayer()
     private var accent = NSColor.controlAccentColor
+    private var hostTint: NSColor?
     private var indicator: ActivityIndicator = .idle
     private var visible = false
     private var animatedWidth: CGFloat?
@@ -51,9 +52,16 @@ final class ActivityScannerView: NSView {
         accent = color
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        track.backgroundColor = color.cgColor
         blob.colors = [color.withAlphaComponent(0).cgColor, color.cgColor, color.withAlphaComponent(0).cgColor]
         CATransaction.commit()
+        render()
+    }
+
+    /// A steady line in the colour of a matching host rule while idle (remote sessions are always idle).
+    func setHostTint(_ color: NSColor?) {
+        guard color != hostTint else { return }
+        hostTint = color
+        render()
     }
 
     func setIndicator(_ indicator: ActivityIndicator, visible: Bool) {
@@ -93,9 +101,18 @@ final class ActivityScannerView: NSView {
 
     private func render() {
         guard let root = layer else { return }
+        let steadyTint = indicator == .idle ? hostTint : nil
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        track.backgroundColor = (steadyTint ?? accent).cgColor
+        CATransaction.commit()
         switch indicator {
         case .idle:
-            if visible, animatedWidth != nil {
+            if steadyTint != nil {
+                fade(root, to: 1)
+                removeSweep()
+                setStatic(trackOpacity: 0.85, blobVisible: false)
+            } else if visible, animatedWidth != nil {
                 // Let the fade finish before freezing the blob.
                 CATransaction.begin()
                 CATransaction.setAnimationDuration(Self.fadeDuration)

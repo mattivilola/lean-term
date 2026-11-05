@@ -37,7 +37,7 @@ import Testing
     #expect(Preferences.validFontSize(.nan) == 13)
     var value = Preferences()
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }
@@ -118,6 +118,7 @@ import Testing
     #expect(Preferences(defaults: defaults).showResourceUsage)
     #expect(Preferences(defaults: defaults).showActivityScanner)
     #expect(Preferences(defaults: defaults).showTabActivity)
+    #expect(Preferences(defaults: defaults).showSessionMarks)
     #expect(Preferences(defaults: defaults).fontName == "SF Mono")
     #expect(Preferences(defaults: defaults).fontSize == 13)
     defaults.set("Menlo", forKey: "fontName")
@@ -132,4 +133,12 @@ import Testing
     }
     Preferences.reset(in: defaults)
     #expect(Preferences(defaults: defaults) == Preferences())
+}
+
+@Test func hostColorRulesMatchCaseInsensitivelyAndFirstWins() {
+    let rules = [HostColorRule(pattern: " ", color: .green), HostColorRule(pattern: "prod-*", color: .red),
+                 HostColorRule(pattern: "*", color: .blue)]
+    #expect(Preferences.hostColor(for: "PROD-db1", in: rules) == .red)
+    #expect(Preferences.hostColor(for: "staging", in: rules) == .blue)
+    #expect(Preferences.hostColor(for: "staging", in: Array(rules.prefix(2))) == nil)
 }

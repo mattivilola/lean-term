@@ -1,5 +1,21 @@
 import Foundation
 
+public enum HostColor: String, CaseIterable, Codable, Sendable {
+    case red, amber, green, blue, purple
+    public var title: String { rawValue.capitalized }
+}
+
+/// Colours remote tabs whose host matches the shell-style `pattern`, e.g. `prod-*`.
+public struct HostColorRule: Codable, Equatable, Sendable {
+    public var pattern: String
+    public var color: HostColor
+
+    public init(pattern: String, color: HostColor) {
+        self.pattern = pattern
+        self.color = color
+    }
+}
+
 public struct Preferences: Equatable, Sendable {
     public enum Appearance: String, CaseIterable, Sendable {
         case system, light, dark
@@ -23,6 +39,10 @@ public struct Preferences: Equatable, Sendable {
     public var showResourceUsage = true
     public var showActivityScanner = true
     public var showTabActivity = true
+    public var showSessionMarks = true
+    /// Off by default: turning it on triggers the macOS notification permission prompt.
+    public var notifyInBackground = false
+    public var hostColorRules: [HostColorRule] = []
     public var closeTabOnShellExit = false
     public var quitAfterLastSession = false
     public static let scrollbackLines = 10_000
@@ -40,8 +60,19 @@ public struct Preferences: Equatable, Sendable {
         showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
         showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
         showTabActivity = defaults.object(forKey: "showTabActivity") == nil ? true : defaults.bool(forKey: "showTabActivity")
+        showSessionMarks = defaults.object(forKey: "showSessionMarks") == nil ? true : defaults.bool(forKey: "showSessionMarks")
+        notifyInBackground = defaults.bool(forKey: "notifyInBackground")
+        hostColorRules = defaults.data(forKey: "hostColorRules").flatMap { try? JSONDecoder().decode([HostColorRule].self, from: $0) } ?? []
         closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
         quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
+    }
+
+    /// The colour of the first rule whose pattern matches the host, case-insensitively. Empty patterns are ignored.
+    public static func hostColor(for host: String, in rules: [HostColorRule]) -> HostColor? {
+        rules.first { rule in
+            let pattern = rule.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !pattern.isEmpty && fnmatch(pattern, host, FNM_CASEFOLD) == 0
+        }?.color
     }
 
     public static func validFontSize(_ value: Double) -> Double {
@@ -49,7 +80,7 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -64,6 +95,9 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(showResourceUsage, forKey: "showResourceUsage")
         defaults.set(showActivityScanner, forKey: "showActivityScanner")
         defaults.set(showTabActivity, forKey: "showTabActivity")
+        defaults.set(showSessionMarks, forKey: "showSessionMarks")
+        defaults.set(notifyInBackground, forKey: "notifyInBackground")
+        defaults.set(try? JSONEncoder().encode(hostColorRules), forKey: "hostColorRules")
         defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
         defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
     }

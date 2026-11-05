@@ -1,19 +1,23 @@
 import Foundation
 
 public enum ActivityIndicator: Equatable, Sendable { case idle, sweeping, holding }
-public enum SessionActivityEvent: Equatable, Sendable { case finishedLongCommand }
+public enum SessionActivityEvent: Equatable, Sendable { case finishedLongCommand(duration: TimeInterval) }
 
 public struct SessionActivitySample: Equatable, Sendable {
     public let foregroundJobRunning: Bool
     public let alternateScreen: Bool
     public let outputCount: UInt64
+    /// The foreground job is a remote login (ssh and friends), not a busy command.
+    public let remoteSession: Bool
     /// Monotonic seconds (`ProcessInfo.systemUptime`).
     public let time: TimeInterval
 
-    public init(foregroundJobRunning: Bool, alternateScreen: Bool, outputCount: UInt64, time: TimeInterval) {
+    public init(foregroundJobRunning: Bool, alternateScreen: Bool, outputCount: UInt64, time: TimeInterval,
+                remoteSession: Bool = false) {
         self.foregroundJobRunning = foregroundJobRunning
         self.alternateScreen = alternateScreen
         self.outputCount = outputCount
+        self.remoteSession = remoteSession
         self.time = time
     }
 }
@@ -52,18 +56,20 @@ public struct SessionActivityModel: Equatable, Sendable {
                 usedAlternate = usedAlternate || sample.alternateScreen
             }
         } else if running, sample.time - jobStart >= Self.longCommand, !usedAlternate {
-            event = .finishedLongCommand
+            event = .finishedLongCommand(duration: sample.time - jobStart)
         }
         running = sample.foregroundJobRunning
 
-        if !running || sample.alternateScreen || sample.time - jobStart < Self.revealDelay {
+        if !running || sample.remoteSession || sample.alternateScreen || sample.time - jobStart < Self.revealDelay {
             indicator = .idle
         } else if sample.time - lastOutputTime < Self.quietAfter {
             indicator = .sweeping
         } else {
             indicator = .holding
         }
-        needsPolling = running || outputChanged
+        // A remote session is not a busy command: only output keeps the sampler awake. When it ends,
+        // the local shell's prompt is output and wakes the sampler to see the job end.
+        needsPolling = (running && !sample.remoteSession) || outputChanged
         return event
     }
 

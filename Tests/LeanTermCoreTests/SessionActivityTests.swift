@@ -43,7 +43,7 @@ private func sample(_ running: Bool, alt: Bool = false, output: UInt64 = 0, at t
     var model = SessionActivityModel()
     #expect(model.record(sample(true, at: 0)) == nil)
     #expect(model.record(sample(true, output: 1, at: 10)) == nil)
-    #expect(model.record(sample(false, output: 1, at: 10.5)) == .finishedLongCommand)
+    #expect(model.record(sample(false, output: 1, at: 10.5)) == .finishedLongCommand(duration: 10.5))
     #expect(model.indicator == .idle)
     #expect(model.record(sample(false, output: 1, at: 11)) == nil)
 }
@@ -51,7 +51,7 @@ private func sample(_ running: Bool, alt: Bool = false, output: UInt64 = 0, at t
 @Test func commandExactlyAtThresholdCountsAsLong() {
     var model = SessionActivityModel()
     model.record(sample(true, at: 50))
-    #expect(model.record(sample(false, at: 60)) == .finishedLongCommand)
+    #expect(model.record(sample(false, at: 60)) == .finishedLongCommand(duration: 10))
 }
 
 @Test func shortCommandAndAlternateScreenJobsDoNotFire() {
@@ -76,7 +76,7 @@ private func sample(_ running: Bool, alt: Bool = false, output: UInt64 = 0, at t
     model.record(sample(true, alt: true, at: 0))
     model.record(sample(false, at: 20))
     model.record(sample(true, at: 21))
-    #expect(model.record(sample(false, at: 40)) == .finishedLongCommand)
+    #expect(model.record(sample(false, at: 40)) == .finishedLongCommand(duration: 19))
 }
 
 @Test func pollingContinuesWhileRunningAndStopsAfterOutputSettles() {
@@ -110,4 +110,17 @@ private func sample(_ running: Bool, alt: Bool = false, output: UInt64 = 0, at t
     #expect(model == SessionActivityModel())
     #expect(model.indicator == .idle && !model.needsPolling)
     #expect(model.record(sample(false, output: 2, at: 30)) == nil)
+}
+
+@Test func remoteSessionShowsNoIndicatorAndPollsOnlyOnOutput() {
+    func remote(output: UInt64, at time: Double) -> SessionActivitySample {
+        SessionActivitySample(foregroundJobRunning: true, alternateScreen: false, outputCount: output, time: time, remoteSession: true)
+    }
+    var model = SessionActivityModel()
+    model.record(remote(output: 1, at: 0))
+    model.record(remote(output: 2, at: 1))
+    #expect(model.indicator == .idle)
+    #expect(model.needsPolling)
+    model.record(remote(output: 2, at: 1.5))
+    #expect(!model.needsPolling)
 }

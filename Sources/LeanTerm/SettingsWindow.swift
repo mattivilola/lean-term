@@ -2,7 +2,7 @@ import AppKit
 import LeanTermCore
 
 @MainActor
-final class SettingsWindow: NSWindowController {
+final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     private weak var app: AppDelegate?
     private let appearance = NSSegmentedControl(labels: ["System", "Light", "Dark"], trackingMode: .selectOne, target: nil, action: nil)
     private let palette = NSSegmentedControl(labels: ["Forest", "Graphite"], trackingMode: .selectOne, target: nil, action: nil)
@@ -16,15 +16,23 @@ final class SettingsWindow: NSWindowController {
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
+    private let notifications = NSButton(checkboxWithTitle: "Notify about finished commands and bells", target: nil, action: nil)
+    private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     private let automaticDownloads = NSButton(checkboxWithTitle: "Download updates in the background", target: nil, action: nil)
-    private let sections = NSSegmentedControl(labels: ["Appearance", "Behavior", "Updates"], trackingMode: .selectOne, target: nil, action: nil)
+    private let sections = NSSegmentedControl(labels: ["Appearance", "Behavior", "Updates", "Hosts"], trackingMode: .selectOne, target: nil, action: nil)
+    private let hosts = NSTableView()
+    private let hostEdit = NSSegmentedControl(images: [NSImage(named: NSImage.addTemplateName) ?? NSImage(),
+                                                         NSImage(named: NSImage.removeTemplateName) ?? NSImage()],
+                                              trackingMode: .momentary, target: nil, action: nil)
+    /// The rules the table currently shows, so refresh() only reloads for outside changes.
+    private var shownRules: [HostColorRule] = []
     private var pages: [NSView] = []
 
     init(app: AppDelegate) {
         self.app = app
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 590),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 710),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -67,7 +75,7 @@ final class SettingsWindow: NSWindowController {
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
 
-        for button in [option, closeOnExit, quitAfterLast, resources, activityScanner, tabActivity] { button.target = self; button.action = #selector(changed) }
+        for button in [option, closeOnExit, quitAfterLast, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -75,13 +83,16 @@ final class SettingsWindow: NSWindowController {
             Self.note("Turn off automatic closing to review final output. Applies to future shell exits.")], spacing: 7)
         let monitoring = Self.vertical([resources,
             Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
-        let activity = Self.vertical([activityScanner, tabActivity,
-            Self.note("Shown while a command runs. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
+        let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
+            Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
+        let notifying = Self.vertical([notifications,
+            Self.note("Posts a notification when a command of 10 s or more finishes, and badges the Dock icon for unseen tabs, while you are elsewhere.")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
-            [NSTextField(labelWithString: "Activity"), activity]
+            [NSTextField(labelWithString: "Activity"), activity],
+            [NSTextField(labelWithString: "Notifications"), notifying]
         ])
         let updatesPage: NSView
         if app.updates.available {
@@ -94,7 +105,8 @@ final class SettingsWindow: NSWindowController {
             updatesPage = Self.vertical([NSTextField(labelWithString: "Updates are available in installed release builds.")], spacing: 14)
         }
 
-        pages = [appearancePage, behaviorPage, updatesPage]
+        let hostsPage = makeHostsPage()
+        pages = [appearancePage, behaviorPage, updatesPage, hostsPage]
         let pageContainer = NSView()
         for (index, page) in pages.enumerated() {
             page.translatesAutoresizingMaskIntoConstraints = false
@@ -106,7 +118,7 @@ final class SettingsWindow: NSWindowController {
                 page.trailingAnchor.constraint(lessThanOrEqualTo: pageContainer.trailingAnchor)
             ])
         }
-        pageContainer.heightAnchor.constraint(equalToConstant: 350).isActive = true
+        pageContainer.heightAnchor.constraint(equalToConstant: 470).isActive = true
         sections.selectedSegment = 0; sections.target = self; sections.action = #selector(sectionChanged)
         let reset = NSButton(title: "Restore Defaults", target: self, action: #selector(resetDefaults))
         reset.bezelStyle = .inline
@@ -148,6 +160,108 @@ final class SettingsWindow: NSWindowController {
         label.widthAnchor.constraint(equalToConstant: 290).isActive = true
         return label
     }
+    private func makeHostsPage() -> NSView {
+        for (identifier, title, width) in [("pattern", "Host pattern", 290.0), ("color", "Colour", 140.0)] {
+            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
+            column.title = title; column.width = width; column.minWidth = width; column.maxWidth = width
+            hosts.addTableColumn(column)
+        }
+        hosts.dataSource = self; hosts.delegate = self
+        hosts.rowHeight = 24
+        hosts.usesAlternatingRowBackgroundColors = true
+        hosts.allowsMultipleSelection = false
+        hosts.setAccessibilityLabel("Host colour rules")
+        let scroll = NSScrollView()
+        scroll.documentView = hosts
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.widthAnchor.constraint(equalToConstant: 448).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: 6 * 24 + 28).isActive = true
+        hostEdit.target = self; hostEdit.action = #selector(hostRulesEdited)
+        hostEdit.segmentStyle = .smallSquare
+        hostEdit.setWidth(28, forSegment: 0); hostEdit.setWidth(28, forSegment: 1)
+        hostEdit.setEnabled(false, forSegment: 1)
+        hostEdit.setToolTip("Add rule", forSegment: 0); hostEdit.setToolTip("Remove rule", forSegment: 1)
+        let note = Self.note("Remote tabs whose host matches show its colour in the tab and as a line above the terminal. Use * as a wildcard, e.g. prod-*. The first match wins.")
+        note.widthAnchor.constraint(equalToConstant: 448).isActive = true
+        return Self.vertical([scroll, hostEdit, note], spacing: 10)
+    }
+
+    private func reloadHosts(_ rules: [HostColorRule]) {
+        shownRules = rules
+        hosts.reloadData()
+        hostEdit.setEnabled(hosts.selectedRow >= 0, forSegment: 1)
+    }
+
+    private func saveHostRules(_ rules: [HostColorRule]) {
+        guard let app else { return }
+        shownRules = rules
+        var value = app.preferences
+        value.hostColorRules = rules
+        app.updatePreferences(value)
+    }
+
+    @objc private func hostRulesEdited() {
+        var rules = shownRules
+        if hostEdit.selectedSegment == 0 {
+            rules.append(HostColorRule(pattern: "", color: .red))
+            saveHostRules(rules)
+            reloadHosts(rules)
+            hosts.selectRowIndexes(IndexSet(integer: rules.count - 1), byExtendingSelection: false)
+            hosts.scrollRowToVisible(rules.count - 1)
+            hosts.editColumn(0, row: rules.count - 1, with: nil, select: true)
+        } else if hosts.selectedRow >= 0 {
+            let row = hosts.selectedRow
+            rules.remove(at: row)
+            saveHostRules(rules)
+            reloadHosts(rules)
+            if !rules.isEmpty { hosts.selectRowIndexes(IndexSet(integer: min(row, rules.count - 1)), byExtendingSelection: false) }
+            hostEdit.setEnabled(hosts.selectedRow >= 0, forSegment: 1)
+        }
+    }
+
+    @objc private func hostColorChosen(_ sender: NSPopUpButton) {
+        let row = hosts.row(for: sender)
+        guard shownRules.indices.contains(row), HostColor.allCases.indices.contains(sender.indexOfSelectedItem) else { return }
+        var rules = shownRules
+        rules[row].color = HostColor.allCases[sender.indexOfSelectedItem]
+        saveHostRules(rules)
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        guard let field = notification.object as? NSTextField else { return }
+        let row = hosts.row(for: field)
+        guard shownRules.indices.contains(row), shownRules[row].pattern != field.stringValue else { return }
+        var rules = shownRules
+        rules[row].pattern = field.stringValue
+        saveHostRules(rules)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { shownRules.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard shownRules.indices.contains(row) else { return nil }
+        if tableColumn?.identifier.rawValue == "color" {
+            let popUp = NSPopUpButton()
+            popUp.controlSize = .small
+            popUp.addItems(withTitles: HostColor.allCases.map(\.title))
+            popUp.selectItem(at: HostColor.allCases.firstIndex(of: shownRules[row].color) ?? 0)
+            popUp.target = self; popUp.action = #selector(hostColorChosen(_:))
+            return popUp
+        }
+        let field = NSTextField(string: shownRules[row].pattern)
+        field.isBordered = false; field.drawsBackground = false
+        field.isEditable = true
+        field.placeholderString = "prod-*"
+        field.delegate = self
+        return field
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        hostEdit.setEnabled(hosts.selectedRow >= 0, forSegment: 1)
+    }
+
     @objc private func sectionChanged() {
         for (index, page) in pages.enumerated() { page.isHidden = index != sections.selectedSegment }
     }
@@ -165,6 +279,9 @@ final class SettingsWindow: NSWindowController {
         resources.state = value.showResourceUsage ? .on : .off
         activityScanner.state = value.showActivityScanner ? .on : .off
         tabActivity.state = value.showTabActivity ? .on : .off
+        sessionMarks.state = value.showSessionMarks ? .on : .off
+        notifications.state = value.notifyInBackground ? .on : .off
+        if value.hostColorRules != shownRules, hosts.editedRow < 0 { reloadHosts(value.hostColorRules) }
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -189,6 +306,8 @@ final class SettingsWindow: NSWindowController {
         value.showResourceUsage = resources.state == .on
         value.showActivityScanner = activityScanner.state == .on
         value.showTabActivity = tabActivity.state == .on
+        value.showSessionMarks = sessionMarks.state == .on
+        value.notifyInBackground = notifications.state == .on
         app.updatePreferences(value)
     }
     @objc private func updateSettingsChanged() {
