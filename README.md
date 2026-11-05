@@ -28,6 +28,8 @@ You can also build from source without a signing account.
 - Optional compact CPU/memory sparklines for the app process, plus configurable
   close-on-shell-exit and quit-after-last-terminal behavior.
 - Optional running-command scanner and busy/finished tab marks, with no cost while sessions are idle.
+- Remote, root and bell marks in tabs, optional host colour rules, and opt-in notifications
+  with a Dock badge for activity you missed.
 - A branded About window and editable keyboard shortcuts with conflict checks.
 - Signed release builds include automatic updates through Sparkle.
 - Confirms closing live sessions and waits for owned shell cleanup on quit.
