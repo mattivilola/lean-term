@@ -1,5 +1,8 @@
 # Small macOS terminal experiment
 
+Results: [initial stack experiment](results/2026-11-04.md) ·
+[released Lean Term 0.1.2](results/2026-11-05.md).
+
 Build with `./script/build_and_run.sh --benchmark run` from the repository root. The app uses
 SwiftTerm's existing `LocalProcessTerminalView`, Menlo 13, 120 × 40 cells,
 10,000 scrollback lines and an opaque background. Select `--renderer metal`
@@ -93,3 +96,24 @@ Use task-owned windows and isolated reference configs. Do not close other user
 terminals, change personal profiles, or publish machine serials, private window
 contents or credentials. Preserve raw failures and identify invalid intervals.
 No live AI request or paid API call is needed.
+
+## Installed-app warm launch check
+
+The small external observer launches the existing installed app; it does not
+build or modify its executable. It applies temporary Menlo 13 and window-frame
+arguments. At scale 2 on the tested display the final viewport was 120 × 40;
+verify the footer rather than assuming the same pixel frame on another setup.
+Keep Menlo, dark Graphite and a steady bar cursor selected to match the report.
+Use a desktop-capable terminal context:
+
+```sh
+swiftc benchmarks/window_launch.swift -o /tmp/leanterm-window-launch
+/tmp/leanterm-window-launch /tmp/leanterm-launch-unique.json /tmp
+```
+
+The output path must be new. It prints the newly launched GUI PID and time to
+its first on-screen main window, not first paint or shell readiness. Close that
+instance normally before repeating, retain all readings, and report the median
+of three warm trials. Preserve and restore the original saved window placement;
+normal window focus/close can save the temporary test frame. Avoid closing other
+user sessions without permission.

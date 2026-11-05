@@ -35,7 +35,7 @@ exit rather than querying a closed app through UI automation.
 
 Additional manual coverage still outstanding: manual IME composition and VoiceOver
 acceptance, sleep/wake and external display checks, minimum-OS runtime coverage,
-and actual-app typing/startup/memory/CPU/soak measurements. The initial experiment
+longer performance/soak tests and cold-launch/first-paint measurements. The initial experiment
 under `benchmarks/results/` describes a separate earlier fixture. Publish new
 performance numbers only with the exact tested app version and conditions.
 
@@ -65,3 +65,14 @@ Apple notarization and Gatekeeper. Version 0.1.2 is bound to source commit
 SHA-256 `8a993bd241bb6e8040ecc2a1816aa1f379a296ecd0cdb535fc12ca27b0e83647`.
 This verifies an immediate manual check and update through the production feed;
 future hourly checks and unattended long-running behavior have not been soaked.
+
+## Released-app performance check
+
+The [0.1.2 benchmark report](../benchmarks/results/2026-11-05.md) records 600
+Typometer samples, separate idle/filled GUI-footprint observations, and three
+warm launch-to-window trials with raw readings and reproducible calculations.
+Shell medians were 24.79 / 24.92 ms; Vim insert-mode median was 25.14 ms.
+GUI footprint was 58.5 / 81.2 MiB idle/filled. Warm window appearance median was
+0.533 s. These endpoints and the historical comparison limits are explicit;
+physical key-to-photon, first-paint/shell-ready, cold-cache and long-soak results
+remain unmeasured. The installed app binary was unchanged by testing.

@@ -1,0 +1,12 @@
+{
+  "bounds" : {
+    "Height" : 714,
+    "Width" : 970,
+    "X" : 209,
+    "Y" : 162
+  },
+  "endpoint" : "launch request to first on-screen main window; not first paint or shell-ready",
+  "pid" : 31818,
+  "poll_interval_ms" : 5,
+  "seconds" : 0.53301549982279539
+}

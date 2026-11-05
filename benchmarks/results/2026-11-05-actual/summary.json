@@ -1,0 +1,70 @@
+{
+  "version": "0.1.2",
+  "latency": [
+    {
+      "column": 1,
+      "title": "LT012-shell-A",
+      "samples": 200,
+      "median_ms": 24.79,
+      "p95_ms": 55.24649999999999,
+      "mean_ms": 27.9585,
+      "min_ms": 14.05,
+      "max_ms": 138.59,
+      "population_sd_ms": 14.790298365820751,
+      "median_ms_exact_decimal": "24.79"
+    },
+    {
+      "column": 2,
+      "title": "LT012-vim",
+      "samples": 200,
+      "median_ms": 25.14,
+      "p95_ms": 41.71799999999999,
+      "mean_ms": 26.99195,
+      "min_ms": 15.5,
+      "max_ms": 76.14,
+      "population_sd_ms": 9.347739978064217,
+      "median_ms_exact_decimal": "25.14"
+    },
+    {
+      "column": 3,
+      "title": "LT012-shell-B",
+      "samples": 200,
+      "median_ms": 24.915,
+      "p95_ms": 38.005999999999986,
+      "mean_ms": 26.42515,
+      "min_ms": 14.21,
+      "max_ms": 50.68,
+      "population_sd_ms": 6.274337094665858,
+      "median_ms_exact_decimal": "24.915"
+    }
+  ],
+  "memory": {
+    "idle": {
+      "median_footprint_mib": 58.51667785644531,
+      "min_footprint_mib": 58.51667785644531,
+      "max_footprint_mib": 58.51667785644531,
+      "seconds": 10.00510900001973,
+      "cpu_percent_one_core": 0.0011098496444811117,
+      "gui_pid": 68772
+    },
+    "filled": {
+      "median_footprint_mib": 81.17311096191406,
+      "min_footprint_mib": 81.17311096191406,
+      "max_footprint_mib": 81.17311096191406,
+      "seconds": 10.005095416912809,
+      "cpu_percent_one_core": 0.001917772814796456,
+      "gui_pid": 68772
+    }
+  },
+  "launch": {
+    "warm_seconds": [
+      0.6053173332475126,
+      0.5330154998227954,
+      0.5156657083425671
+    ],
+    "warm_median_seconds": 0.5330154998227954,
+    "endpoint": "request to first on-screen main window; not first paint or shell-ready",
+    "poll_interval_ms": 5,
+    "cold_start_measured": false
+  }
+}

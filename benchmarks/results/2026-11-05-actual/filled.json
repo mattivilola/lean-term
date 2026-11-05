@@ -1,0 +1,99 @@
+{
+  "pid": 68772,
+  "seconds": 10.005095416912809,
+  "cpu_percent_one_core": 0.001917772814796456,
+  "timebase": {
+    "numer": 125,
+    "denom": 3
+  },
+  "readings": [
+    {
+      "time": 1928077.168863458,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268005802,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928078.17337275,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268005802,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928079.178496083,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268005802,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928080.18213375,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007126,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928081.187252875,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007126,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928082.190667083,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007126,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928083.195789833,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007963,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928084.200917791,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89292800,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007963,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928085.206163541,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89063424,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268007963,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928086.210656875,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89260032,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268010407,
+      "idle_wakeups": 99
+    },
+    {
+      "time": 1928087.173958875,
+      "footprint_bytes": 85116176,
+      "rss_bytes": 89260032,
+      "process_start_mach_ticks": 46241511136047,
+      "cpu_mach_ticks": 268010407,
+      "idle_wakeups": 99
+    }
+  ]
+}

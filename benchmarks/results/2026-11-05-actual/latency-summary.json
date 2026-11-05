@@ -1,0 +1,35 @@
+[
+  {
+    "column": 1,
+    "title": "LT012-shell-A",
+    "samples": 200,
+    "median_ms": 24.79,
+    "p95_ms": 55.24649999999999,
+    "mean_ms": 27.9585,
+    "min_ms": 14.05,
+    "max_ms": 138.59,
+    "population_sd_ms": 14.790298365820751
+  },
+  {
+    "column": 2,
+    "title": "LT012-vim",
+    "samples": 200,
+    "median_ms": 25.14,
+    "p95_ms": 41.71799999999999,
+    "mean_ms": 26.99195,
+    "min_ms": 15.5,
+    "max_ms": 76.14,
+    "population_sd_ms": 9.347739978064217
+  },
+  {
+    "column": 3,
+    "title": "LT012-shell-B",
+    "samples": 200,
+    "median_ms": 24.915,
+    "p95_ms": 38.005999999999986,
+    "mean_ms": 26.42515,
+    "min_ms": 14.21,
+    "max_ms": 50.68,
+    "population_sd_ms": 6.274337094665858
+  }
+]

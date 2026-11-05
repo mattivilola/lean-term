@@ -1,0 +1,99 @@
+{
+  "pid": 44122,
+  "seconds": 10.003758082864806,
+  "cpu_percent_one_core": 0.0016310537031693204,
+  "timebase": {
+    "numer": 125,
+    "denom": 3
+  },
+  "readings": [
+    {
+      "time": 1926282.49446225,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20256008,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926283.49964975,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20256984,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926284.501947041,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20256984,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926285.506588625,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20256984,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926286.50797475,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20257648,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926287.508892916,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20257648,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926288.514005541,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20257648,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926289.519530208,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20259124,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926290.523888541,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20259124,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926291.52911375,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20259124,
+      "idle_wakeups": 1
+    },
+    {
+      "time": 1926292.498220333,
+      "footprint_bytes": 54068352,
+      "rss_bytes": 94257152,
+      "process_start_mach_ticks": 46226279669353,
+      "cpu_mach_ticks": 20259924,
+      "idle_wakeups": 1
+    }
+  ]
+}

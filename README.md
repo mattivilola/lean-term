@@ -31,8 +31,11 @@ You can also build from source without a signing account.
 
 Swift + AppKit + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), explicitly
 using CoreGraphics/CoreText. No web runtime or app-owned idle polling. The
-[initial experiment](benchmarks/results/2026-11-04.md) informed this choice; it is
-not a benchmark of this app version or proof of the fastest possible terminal.
+[initial experiment](benchmarks/results/2026-11-04.md) informed this choice. The
+[first released-app check](benchmarks/results/2026-11-05.md) measured about 25 ms
+median typing response, 58.5 MiB idle GUI footprint and a 0.53 s warm window
+launch on the tested Mac. These local capture/window timings do not establish
+the fastest possible terminal; the report includes conditions and raw data.
 Rust was not benchmarked and remains an option if profiling justifies it.
 
 ## Build and run

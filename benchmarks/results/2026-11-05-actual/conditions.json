@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-05",
+  "app": "Lean Term",
+  "version": "0.1.2",
+  "source_revision": "756dee2375af089f000b7239fc7d310465427210",
+  "binary_sha256": "1f803305bd3d9edbfb5c5956cdbebaee97d8b6d31e6f439c0d1cf9d2e12bbbd7",
+  "release_build": true,
+  "hardware": {
+    "chip_type": "Apple M3 Max",
+    "physical_memory": "36 GB",
+    "machine_model": "Mac15,10",
+    "display": {
+      "maximum_hz": 120,
+      "scale": 2,
+      "variable_refresh_locked": false
+    },
+    "physical_memory_bytes": 38654705664
+  },
+  "os": "macOS 27.0.1 (26A434)",
+  "toolchain": "Xcode 27.1 / Apple Swift 6.4",
+  "power": "AC",
+  "viewport": {
+    "columns": 120,
+    "rows": 40
+  },
+  "font": "Menlo Regular 13",
+  "appearance": "Dark / Graphite; opaque",
+  "cursor": "steady bar",
+  "scrollback_lines": 10000,
+  "renderer": "CoreGraphics/CoreText",
+  "swiftterm_revision": "309adcc28bdf0e01f6403d04616323b379fb5635",
+  "typing_tool": "Typometer 1.0.1 / Java 21 / AWT Robot capture; synchronous, 150 ms delay; no intermediate pauses",
+  "shell_context": "/bin/zsh -f; PROMPT='> '; RPROMPT=''",
+  "tui": "Vim 9.1.1752 insert mode; -Nu NONE -n -i NONE --noplugin; unnamed buffer",
+  "manual_start_focus": true,
+  "background_load_controlled": false,
+  "display_refresh_fixed": false,
+  "note": "Synthetic input-to-screen-capture; not physical key-to-photon. GUI footprint excludes child/helper processes."
+}

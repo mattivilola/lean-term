@@ -1,0 +1,56 @@
+{
+  "child_pid": 17197,
+  "parent_pid": 68775,
+  "cols": 120,
+  "rows": 40,
+  "metric": "PTY writer completion, excludes final screen painting",
+  "runs": [
+    {
+      "fixture": "ascii",
+      "repeat": 1,
+      "seconds": 0.056206041999999984,
+      "mib_per_second": 177.9158652416458
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 1,
+      "seconds": 0.25763775,
+      "mib_per_second": 38.8140396856724
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 2,
+      "seconds": 0.06818575000000004,
+      "mib_per_second": 146.6574261372541
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 2,
+      "seconds": 0.17847837499999963,
+      "mib_per_second": 56.02898308003625
+    },
+    {
+      "fixture": "ascii",
+      "repeat": 3,
+      "seconds": 0.07119704199999966,
+      "mib_per_second": 140.45452329660452
+    },
+    {
+      "fixture": "mixed",
+      "repeat": 3,
+      "seconds": 0.17808812500000037,
+      "mib_per_second": 56.15176111842001
+    }
+  ],
+  "phase": "filled",
+  "fixtures": {
+    "ascii": {
+      "bytes": 10485704,
+      "sha256": "f3f3c5e4b09bda9694a7ec4ab57719e0da30ea9dee0fa232cec83ba0258f1966"
+    },
+    "mixed": {
+      "bytes": 10485720,
+      "sha256": "f2c873d817510a1d0a1458d2b3962cb4b707ed380fb6db484997e0067c05482b"
+    }
+  }
+}
