@@ -35,5 +35,7 @@
   "manual_start_focus": true,
   "background_load_controlled": false,
   "display_refresh_fixed": false,
-  "note": "Synthetic input-to-screen-capture; not physical key-to-photon. GUI footprint excludes child/helper processes."
+  "note": "Synthetic input-to-screen-capture; not physical key-to-photon. GUI footprint excludes child/helper processes.",
+  "csv_storage": "Line endings normalized to LF for Git; all numeric samples unchanged.",
+  "original_export_sha256": "ab346d193a2c88b938b7479895d1f108ee8414ee31caaa22a3670a94344f0f0e"
 }
