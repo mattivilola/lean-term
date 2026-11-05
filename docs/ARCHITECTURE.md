@@ -113,3 +113,13 @@ or Low Power Mode. The tab accessory shows a filled dot while busy and a ring wh
 command finished in a window you were not looking at, cleared when that window becomes key.
 Both use the brand phosphor colour from the icon, whatever the palette. Each sample re-adds a
 sweep that Core Animation dropped, so a tab that is selected again resumes animating.
+
+Remote and root sessions are classified once per foreground job, not per tick: when the
+foreground group changes, `ForegroundProcessReader` reads the leader’s name, effective uid
+and (only for remote tools) argv through `sysctl`. `ssh`, `autossh`, `mosh-client` and `et`
+make the session remote, and the ssh destination is parsed from argv for the tab tooltip and
+subtitle. A remote session shows an amber `network` symbol and no busy dot or sweep, and polls
+only while output changes, so typing over ssh does not animate; a root leader shows `number`
+beside the normal dot. The remote working directory comes from OSC 7 with a non-local host and
+only feeds the subtitle; it never changes the local directory or the represented URL. Limitation:
+ssh started inside a local tmux or screen is not visible, since the foreground job is the multiplexer.

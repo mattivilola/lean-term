@@ -215,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         refreshActivityMonitoring()
     }
     private func refreshActivityMonitoring() {
-        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity) && !terminationPending
+        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity || preferences.showSessionMarks) && !terminationPending
     }
     func refreshResourceMonitoring() {
         metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })

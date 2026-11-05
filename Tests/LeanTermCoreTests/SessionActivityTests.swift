@@ -111,3 +111,16 @@ private func sample(_ running: Bool, alt: Bool = false, output: UInt64 = 0, at t
     #expect(model.indicator == .idle && !model.needsPolling)
     #expect(model.record(sample(false, output: 2, at: 30)) == nil)
 }
+
+@Test func remoteSessionShowsNoIndicatorAndPollsOnlyOnOutput() {
+    func remote(output: UInt64, at time: Double) -> SessionActivitySample {
+        SessionActivitySample(foregroundJobRunning: true, alternateScreen: false, outputCount: output, time: time, remoteSession: true)
+    }
+    var model = SessionActivityModel()
+    model.record(remote(output: 1, at: 0))
+    model.record(remote(output: 2, at: 1))
+    #expect(model.indicator == .idle)
+    #expect(model.needsPolling)
+    model.record(remote(output: 2, at: 1.5))
+    #expect(!model.needsPolling)
+}

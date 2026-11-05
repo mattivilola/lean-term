@@ -59,10 +59,22 @@ public struct ShellLaunch: Sendable {
     /// Accept local OSC 7 file URLs only; never treat remote host paths as local directories.
     public static func localDirectory(from value: String?, localHost: String = ProcessInfo.processInfo.hostName) -> String? {
         guard let value, let url = URL(string: value), url.isFileURL,
-              url.host == nil || url.host == "" || url.host == "localhost" || url.host == localHost,
+              isLocalHost(url.host, localHost: localHost),
               url.path.hasPrefix("/") else { return nil }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { return nil }
         return url.path
+    }
+
+    /// The host and absolute path of an OSC 7 file URL that names another machine. No filesystem check.
+    public static func remoteDirectory(from value: String?, localHost: String = ProcessInfo.processInfo.hostName) -> (host: String, path: String)? {
+        guard let value, let url = URL(string: value), url.isFileURL,
+              let host = url.host, !isLocalHost(host, localHost: localHost),
+              url.path.hasPrefix("/") else { return nil }
+        return (host, url.path)
+    }
+
+    private static func isLocalHost(_ host: String?, localHost: String) -> Bool {
+        host == nil || host == "" || host == "localhost" || host == localHost
     }
 }

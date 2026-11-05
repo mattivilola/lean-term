@@ -16,6 +16,8 @@ struct TerminalTheme {
     let accent: NSColor
     /// Brand CRT phosphor from the emerald `>_` icon, independent of palette.
     let phosphor: NSColor
+    /// Amber CRT phosphor for remote and root marks, independent of palette.
+    let amber: NSColor
     let selection: NSColor
     let ansi: [SwiftTerm.Color]
 
@@ -25,6 +27,7 @@ struct TerminalTheme {
         foreground = NSColor(hex: dark ? 0xe6eee8 : 0x24332b)
         accent = NSColor(hex: dark ? (forest ? 0x95e6af : 0x9cc3f5) : (forest ? 0x24693d : 0x305b96))
         phosphor = NSColor(hex: dark ? 0xb9f6c6 : 0x008a48)
+        amber = NSColor(hex: dark ? 0xffb547 : 0x9a5b00)
         selection = NSColor(hex: dark ? (forest ? 0x304c3c : 0x34455f) : (forest ? 0xd1e6d5 : 0xd3e0f3))
         let colors: [UInt32] = dark
             ? [0x202923, 0xf08080, 0x9bd4a2, 0xe8ca8a, 0x91b8ed, 0xc2a1df, 0x89cfcd, 0xd8e2dc,

@@ -34,6 +34,10 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private let activityCounter = SessionActivityCounter()
     private var activityModel = SessionActivityModel()
     private var finishedUnseen = false
+    private var foregroundGroup: pid_t = 0
+    private var foregroundLeaderPendingExec = false
+    private var session = ForegroundSession.local
+    private var remoteLocation: (host: String, path: String)?
     weak var activityMonitor: SessionActivityMonitor?
     private let restart = NSButton(title: "New Session", target: nil, action: nil)
     private var fallback: DispatchWorkItem?
@@ -66,7 +70,6 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         super.init(window: window)
         window.delegate = self
         window.title = "Lean Term"
-        window.subtitle = Self.displayPath(currentDirectory)
         window.tabbingIdentifier = "LeanTerm.Terminal"
         window.tabbingMode = .automatic
         window.minSize = NSSize(width: 480, height: 300)
@@ -119,6 +122,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         surface.wantsLayer = true
         surface.appearanceChanged = { [weak self] in self?.applyTheme() }
         apply(preferences)
+        updateSubtitle()
         surface.layoutSubtreeIfNeeded()
         status.stringValue = launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
         window.center()
@@ -188,14 +192,18 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     /// Samples the foreground job once. Returns whether another sample is needed.
     func sampleActivity(at time: TimeInterval) -> Bool {
         var foreground = false
+        var group: pid_t = 0
         if let process = terminal.process, process.running {
-            let group = tcgetpgrp(process.childfd)
-            foreground = group > 0 && group != process.shellPid
+            let current = tcgetpgrp(process.childfd)
+            foreground = current > 0 && current != process.shellPid
+            if foreground { group = current }
         }
+        updateSession(group: group)
         let sample = SessionActivitySample(
             foregroundJobRunning: foreground,
             alternateScreen: terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true,
-            outputCount: activityCounter.outputCount, time: time)
+            outputCount: activityCounter.outputCount, time: time,
+            remoteSession: session.isRemote)
         activityCounter.disarm()
         if activityModel.record(sample) == .finishedLongCommand, preferences.showTabActivity,
            !(window?.isKeyWindow == true && isResourceDisplayVisible && NSApp.isActive) {
@@ -208,8 +216,42 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
 
     func motionOptionsChanged() { scanner.motionOptionsChanged() }
 
+    /// Looks the foreground leader up once per job start, never per tick. A leader still named like the
+    /// shell has been forked but may not have exec'd its command yet, so it is read again next sample.
+    private func updateSession(group: pid_t) {
+        guard group != foregroundGroup || foregroundLeaderPendingExec else { return }
+        foregroundGroup = group
+        let previous = session
+        let leader = group > 0 ? ForegroundProcessReader.read(groupLeader: group) : nil
+        foregroundLeaderPendingExec = leader?.name == URL(fileURLWithPath: launch.executable).lastPathComponent
+        session = ForegroundSession(leader)
+        if !session.isRemote { remoteLocation = nil }
+        if session != previous { updateSubtitle() }
+    }
+
+    private func updateSubtitle() {
+        let local = Self.displayPath(currentDirectory)
+        guard preferences.showSessionMarks else { window?.subtitle = local; return }
+        switch session {
+        case .local:
+            window?.subtitle = local
+        case .root:
+            window?.subtitle = "root · " + local
+        case .remote(let tool, let host):
+            if let remoteLocation {
+                window?.subtitle = "\(remoteLocation.host):\(remoteLocation.path)"
+            } else {
+                window?.subtitle = host.map { "\(tool) \($0)" } ?? tool
+            }
+        }
+    }
+
     func resetActivity() {
         activityModel.reset()
+        foregroundGroup = 0; foregroundLeaderPendingExec = false
+        session = .local
+        remoteLocation = nil
+        updateSubtitle()
         finishedUnseen = false
         renderActivity()
     }
@@ -224,6 +266,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         } else {
             tabMark.setMark(finishedUnseen ? .done : .hidden)
         }
+        tabMark.setSession(preferences.showSessionMarks ? session.mark : .none)
     }
     func windowDidResignKey(_ notification: Notification) { savePlacement(); visibilityChanged() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
@@ -234,6 +277,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
         if !value.showTabActivity { finishedUnseen = false }
+        updateSubtitle()
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
@@ -258,7 +302,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
         scanner.applyAccent(theme.phosphor)
-        tabMark.applyAccent(theme.phosphor)
+        tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -309,10 +353,14 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         if !clean.isEmpty { window?.title = clean }
     }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
-        guard let path = ShellLaunch.localDirectory(from: directory) else { return }
-        currentDirectory = path
-        window?.subtitle = Self.displayPath(path)
-        window?.representedURL = URL(fileURLWithPath: path)
+        if let path = ShellLaunch.localDirectory(from: directory) {
+            currentDirectory = path
+            window?.representedURL = URL(fileURLWithPath: path)
+            updateSubtitle()
+        } else if session.isRemote, let location = ShellLaunch.remoteDirectory(from: directory) {
+            remoteLocation = location
+            updateSubtitle()
+        }
     }
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         terminationCount += 1
@@ -375,5 +423,21 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         let home = NSHomeDirectory()
         if path == home { return "~" }
         return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+}
+
+private extension ForegroundSession {
+    var isRemote: Bool {
+        if case .remote = self { return true }
+        return false
+    }
+
+    var mark: SessionMark {
+        switch self {
+        case .local: return .none
+        case .root: return .root
+        case .remote(let tool, let host):
+            return .remote(host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)")
+        }
     }
 }
