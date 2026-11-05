@@ -21,7 +21,7 @@ functional checks, not a finished-product performance benchmark or a notarized r
   close cancellation, aggregate quit cancellation and confirmed quit.
 - About credits, shortcut layout, conflict recording without executing Quit,
   binding changes/reset/cancel, and both directions of tab wrap in the native UI.
-- Twelve offline release-helper checks for metadata, source identity, signing
+- Thirteen offline release-helper checks for metadata, source identity, signing
   order, draft publication, downgrade prevention and safe installation guards.
 - App bundle structure, canonical icon bytes and local ad-hoc signature.
 

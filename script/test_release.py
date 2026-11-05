@@ -11,6 +11,16 @@ from script import release
 
 
 class ReleaseHelpersTests(unittest.TestCase):
+    def test_github_missing_tag_commit_422_is_distinct_from_other_failures(self) -> None:
+        with patch.object(release, "command") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = ""
+            run.return_value.stderr = "gh: No commit found for SHA: v0.1.1 (HTTP 422)"
+            self.assertIsNone(release.gh_api("commits/v0.1.1"))
+            run.return_value.stderr = "gh: Validation failed (HTTP 422)"
+            with self.assertRaises(release.ReleaseError):
+                release.gh_api("commits/v0.1.1")
+
     def test_publishing_cannot_move_latest_backwards(self) -> None:
         with patch.object(release, "gh_api", return_value={"tag_name": "v0.1.2"}):
             with self.assertRaises(release.ReleaseError):

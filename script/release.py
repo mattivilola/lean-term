@@ -254,7 +254,9 @@ def gh_api(path: str) -> dict[str, Any] | list[Any] | None:
     result = command(["gh", "api", f"repos/{REPO}/{path}"], capture=True, check=False)
     if result.returncode:
         error = (result.stderr or "").lower()
-        if "http 404" in error or "not found" in error:
+        if "http 404" in error or "not found" in error or (
+            path.startswith("commits/") and "http 422" in error and "no commit found for sha" in error
+        ):
             return None
         detail = (result.stderr or result.stdout or "").strip()
         raise ReleaseError(f"GitHub API request failed for {path}: {detail}")
