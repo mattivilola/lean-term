@@ -39,7 +39,7 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }

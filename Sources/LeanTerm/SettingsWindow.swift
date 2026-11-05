@@ -12,10 +12,12 @@ final class SettingsWindow: NSWindowController {
     private let cursor = NSPopUpButton()
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let preview = NSTextView()
+    private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
+    private let automaticDownloads = NSButton(checkboxWithTitle: "Download updates in the background", target: nil, action: nil)
 
     init(app: AppDelegate) {
         self.app = app
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: app.updates.available ? 595 : 510),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -47,14 +49,28 @@ final class SettingsWindow: NSWindowController {
         let sizeRow = NSStackView(views: [size, sizeLabel]); sizeRow.spacing = 10
         size.widthAnchor.constraint(equalToConstant: 210).isActive = true
         option.target = self; option.action = #selector(changed)
-        let grid = NSGridView(views: [
+        let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
+        shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
+        let keyboard = NSStackView(views: [option, shortcuts])
+        keyboard.orientation = .vertical; keyboard.alignment = .leading; keyboard.spacing = 6
+        var rows: [[NSView]] = [
             [NSTextField(labelWithString: "Appearance"), appearance],
             [NSTextField(labelWithString: "Palette"), palette],
             [NSTextField(labelWithString: "Font"), font],
             [NSTextField(labelWithString: "Text size"), sizeRow],
             [NSTextField(labelWithString: "Cursor"), cursor],
-            [NSTextField(labelWithString: "Keyboard"), option]
-        ])
+            [NSTextField(labelWithString: "Keyboard"), keyboard]
+        ]
+        if app.updates.available {
+            automaticChecks.target = self; automaticChecks.action = #selector(updateSettingsChanged)
+            automaticDownloads.target = self; automaticDownloads.action = #selector(updateSettingsChanged)
+            let note = NSTextField(labelWithString: "Checks on launch and hourly. Installs when you quit.")
+            note.font = .systemFont(ofSize: 10); note.textColor = .secondaryLabelColor
+            let controls = NSStackView(views: [automaticChecks, automaticDownloads, note])
+            controls.orientation = .vertical; controls.alignment = .leading; controls.spacing = 6
+            rows.append([NSTextField(labelWithString: "Updates"), controls])
+        }
+        let grid = NSGridView(views: rows)
         grid.rowSpacing = 15; grid.columnSpacing = 22
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .leading
@@ -95,6 +111,8 @@ final class SettingsWindow: NSWindowController {
         size.doubleValue = value.fontSize; sizeLabel.stringValue = "\(Int(value.fontSize)) pt"
         cursor.selectItem(withTitle: value.cursor.title)
         option.state = value.optionAsMeta ? .on : .off
+        automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
+        automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = TerminalTheme(palette: value.palette, dark: dark)
         preview.backgroundColor = theme.background
@@ -114,5 +132,13 @@ final class SettingsWindow: NSWindowController {
         value.optionAsMeta = option.state == .on
         app.updatePreferences(value)
     }
-    @objc private func resetDefaults() { app?.updatePreferences(Preferences()) }
+    @objc private func updateSettingsChanged() {
+        app?.updates.automaticallyChecks = automaticChecks.state == .on
+        app?.updates.automaticallyDownloads = automaticDownloads.state == .on
+    }
+    @objc private func resetDefaults() {
+        app?.updates.restoreDefaults()
+        app?.updatePreferences(Preferences())
+        refresh()
+    }
 }

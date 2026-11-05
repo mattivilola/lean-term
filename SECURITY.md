@@ -4,7 +4,7 @@ Lean Term is pre-release software. Security fixes target the current `main` bran
 there is not yet a supported binary release series.
 
 Report a vulnerability privately through GitHub's **Security → Report a vulnerability**
-on [mattivilola/leanterm](https://github.com/mattivilola/leanterm/security/advisories/new).
+on [mattivilola/lean-term](https://github.com/mattivilola/lean-term/security/advisories/new).
 Include the affected revision, reproduction steps and impact. Please omit real
 credentials and private terminal history from reports and attachments.
 

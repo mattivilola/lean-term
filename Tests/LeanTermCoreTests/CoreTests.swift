@@ -84,3 +84,26 @@ import Testing
     #expect(Preferences(defaults: defaults) == Preferences())
     #expect(defaults.string(forKey: "unrelated") == "retained")
 }
+
+@Test func shortcutsPersistRejectConflictsAndReset() throws {
+    let name = "LeanTermTests." + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    var value = ShortcutConfiguration()
+    #expect(value.binding(for: .previousTab)?.display == "⌘←")
+    #expect(value.binding(for: .nextTab)?.display == "⌘→")
+    try value.set(.init("n", [.command, .option]), for: .newWindow)
+    value.save(to: defaults)
+    #expect(ShortcutConfiguration(defaults: defaults) == value)
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("t"), for: .newWindow) }
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("[", [.command, .shift]), for: .newWindow) }
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("c"), for: .newWindow) }
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init(" "), for: .newWindow) }
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("x", .option), for: .newWindow) }
+    try value.reset(.newWindow)
+    #expect(value == ShortcutConfiguration())
+    defaults.set(["newWindow": ["key": "q", "modifiers": 1]], forKey: "shortcuts")
+    #expect(ShortcutConfiguration(defaults: defaults) == ShortcutConfiguration())
+    Preferences.reset(in: defaults)
+    #expect(defaults.object(forKey: "shortcuts") == nil)
+}

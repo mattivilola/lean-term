@@ -1,13 +1,13 @@
 # Development validation
 
-## 0.1.0 preview — 5 November 2026
+## 0.1.1 — 5 November 2026
 
 Validated locally on Apple Silicon with the Release app bundle. This records
 functional checks, not a finished-product performance benchmark or a notarized release.
 
-- Six Swift core tests: login-shell environment, fallback/defaults, preference
+- Seven Swift core tests: login-shell environment, fallback/defaults, preference
   validation/persistence, local directory URL handling, window placement across
-  changed displays, and selective recovery resets.
+  changed displays, selective recovery resets, and shortcut persistence/conflict checks.
 - Benchmark regression test: all five partial-result suffixes reserve their
   label and prevent overwriting retained readings.
 - All 35 brand assets: byte counts, SHA-256, SVG XML and PNG/ICNS headers.
@@ -19,6 +19,10 @@ functional checks, not a finished-product performance benchmark or a notarized r
 - Native UI: normal account login shell, bracketed paste, Unicode/emoji output,
   Unicode Find, dark appearance/settings layout, native tabs, Vim rendering,
   close cancellation, aggregate quit cancellation and confirmed quit.
+- About credits, shortcut layout, conflict recording without executing Quit,
+  binding changes/reset/cancel, and both directions of tab wrap in the native UI.
+- Twelve offline release-helper checks for metadata, source identity, signing
+  order, draft publication, downgrade prevention and safe installation guards.
 - App bundle structure, canonical icon bytes and local ad-hoc signature.
 
 The native smoke mode uses an isolated preference domain and clean test shells;
@@ -29,7 +33,7 @@ The development packager and running app share a file lock, so rebuilding cannot
 overwrite the bundle while it contains live sessions. Quit checks observe app
 exit rather than querying a closed app through UI automation.
 
-Still needed before a production release: manual IME composition and VoiceOver
+Additional manual coverage still outstanding: manual IME composition and VoiceOver
 acceptance, sleep/wake and external display checks, minimum-OS runtime coverage,
 and actual-app typing/startup/memory/CPU/soak measurements. The initial experiment
 under `benchmarks/results/` describes a separate earlier fixture. Publish new

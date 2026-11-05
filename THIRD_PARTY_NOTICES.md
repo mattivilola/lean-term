@@ -36,3 +36,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 Typometer is an external measurement tool, downloaded into an ignored temporary cache; its distribution and license remain upstream. No Java runtime or system fonts are distributed by this source repository.
+
+## Sparkle
+
+Lean Term links Sparkle 2.10.1, an MIT-licensed native updater. The complete
+Sparkle and bundled external notices are retained in
+[release/SPARKLE-LICENSE.txt](release/SPARKLE-LICENSE.txt) and copied into app bundles.
+Upstream: https://github.com/sparkle-project/Sparkle

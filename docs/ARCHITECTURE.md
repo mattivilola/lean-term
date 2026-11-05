@@ -56,6 +56,19 @@ when updating the dependency. Upstream's license is retained in
 
 This first usable v1 includes local shells, native windows/tabs, Find, bounded
 scrollback, copy/paste, font/palette/cursor settings and System/Light/Dark following.
-Splits, editable TOML configuration, hot reload, shortcut editing, metrics,
+Splits, editable TOML configuration, hot reload, metrics,
 restoration and startup commands remain roadmap items. No telemetry, AI service,
 web runtime or plugin system is added.
+
+## Shortcuts and updates
+
+A typed shortcut map drives the menus and the reference/editor window. The
+recorder consumes key events only while active, checks existing bindings through
+an inert native menu, and saves overrides in UserDefaults. Fixed native editing
+and alternate tab shortcuts remain available.
+
+Sparkle 2.10.1 owns release update scheduling, signed-feed/archive verification,
+downloading and installation. Development and smoke builds do not start it.
+Sparkle's quit request passes through the same asynchronous session confirmation
+and cleanup path as ordinary quit. Private signing keys stay in Keychain; release
+scripts publish only verified, signed and notarized artifacts.

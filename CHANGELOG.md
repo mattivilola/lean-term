@@ -1,12 +1,15 @@
 # Changelog
 
-## 0.1.0 — Unreleased development preview
+## 0.1.1 — First public release
 
-- First native Swift/AppKit app using SwiftTerm's CoreGraphics/CoreText path.
+- Native Swift/AppKit terminal with SwiftTerm's CoreGraphics/CoreText renderer.
 - Login shells, native tabs/windows, Find and bounded scrollback.
 - Forest/Graphite palettes, System/Light/Dark appearance and visual font/cursor settings.
 - Confirmed close/quit with asynchronous shell cleanup.
 - Saved window position/size with display recovery and command-line reset options.
-- Emerald CRT branding, source-build workflow, focused tests and macOS CI.
+- Wrapping ⌘←/⌘→ tab navigation and an editable shortcut reference with conflict checks.
+- Branded About window, emerald CRT icons and project credits.
+- Developer ID signing, notarization, GitHub release commands and Sparkle update bootstrap.
 
-No signed/notarized public app release or finished-app performance claims yet.
+The initial experiment describes an earlier fixture. This release makes no new
+finished-app latency or fastest-terminal claims.

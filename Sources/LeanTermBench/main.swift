@@ -96,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, LocalProcessTerminalVi
 }
 
 let bundleLockPath = Bundle.main.resourceURL!.appendingPathComponent("Build.lock").path
-let bundleLock = open(bundleLockPath, O_RDONLY)
+let bundleLock = open(bundleLockPath, O_RDONLY | O_CLOEXEC)
 guard bundleLock >= 0, flock(bundleLock, LOCK_SH | LOCK_NB) == 0 else { exit(2) }
 defer { close(bundleLock) }
 let app = NSApplication.shared

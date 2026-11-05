@@ -5,15 +5,16 @@
   <img alt="Lean Term" src="branding/approved/crt-family/lean-term/wordmark-on-light@2x.png" width="280">
 </picture>
 
-[![macOS CI](https://github.com/mattivilola/leanterm/actions/workflows/ci.yml/badge.svg)](https://github.com/mattivilola/leanterm/actions/workflows/ci.yml)
+[![macOS CI](https://github.com/mattivilola/lean-term/actions/workflows/ci.yml/badge.svg)](https://github.com/mattivilola/lean-term/actions/workflows/ci.yml)
 
 A small, native terminal for macOS. Built for responsive typing, a clean interface
 and a little less distraction. Free and open source.
 
 [Website](https://leanterm.com) · [Build](#build-and-run) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
-**Development preview · 0.1.0.** The first usable v1 is being built here. Build
-from source; there is no signed, notarized public Lean Term download yet.
+**0.1.1** · Apple silicon · macOS 26+.
+[Releases and downloads](https://github.com/mattivilola/lean-term/releases).
+You can also build from source without a signing account.
 
 ## What it does
 
@@ -23,6 +24,8 @@ from source; there is no signed, notarized public Lean Term download yet.
 - Bounded 10,000-line scrollback; clear history without sending input to a program.
 - System/Light/Dark appearance, Forest and Graphite palettes, font size/family,
   cursor shape and optional Option-as-Meta, in a compact visual settings window.
+- A branded About window and editable keyboard shortcuts with conflict checks.
+- Signed release builds include automatic updates through Sparkle.
 - Confirms closing live sessions and waits for owned shell cleanup on quit.
 - Remembers the last active window's position and size, fitting it to available displays.
 
@@ -39,8 +42,8 @@ The first build downloads pinned package dependencies. No signing certificate,
 API key or account is needed.
 
 ```sh
-git clone https://github.com/mattivilola/leanterm.git
-cd leanterm
+git clone https://github.com/mattivilola/lean-term.git
+cd lean-term
 ./script/build_and_run.sh
 ```
 
@@ -63,7 +66,7 @@ Quit the app first, then use these recovery options if needed:
 
 `--reset-window` restores the default window placement and size while keeping
 visual preferences. `--reset-settings` restores both visual preferences and
-window placement. Shell configuration and history are unaffected.
+window placement, shortcuts and update preferences. Shell configuration and history are unaffected.
 
 Quit the development app before replacing its bundle; the script never kills
 active sessions. `--debug` opens LLDB. `--logs` streams process logs
@@ -88,14 +91,20 @@ pinned SwiftTerm checkout. Supported builds go through the script;
 | Copy / paste / select all | ⌘C / ⌘V / ⌘A |
 | Clear scrollback, keeping the visible screen | ⌘K |
 | Larger / smaller / default text | ⌘+ / ⌘− / ⌘0 |
-| Next / previous tab | ⇧⌘] / ⇧⌘[ |
+| Next / previous tab (wraps) | ⌘→ / ⌘← |
+| Alternate next / previous tab | ⇧⌘] / ⇧⌘[ |
+| Shortcut reference and editor | ⌘? |
 | Settings | ⌘, |
 
-Settings apply to all sessions and save automatically in macOS preferences.
+Open **Settings → Keyboard Shortcuts** or **Help → Keyboard Shortcuts** to
+change bindings or restore defaults. Settings save automatically in macOS preferences.
 New tabs use the last reported local working directory. Without shell directory
 reporting, that may remain the starting directory. No shell hooks are installed.
 
 ## Development and scope
+
+`make build`, `make run` and `make test` cover everyday development.
+See the [release guide](docs/RELEASING.md) for signing, publishing and installing.
 
 Run the focused core tests with `./script/build_and_run.sh --test`.
 An opt-in native integration check uses isolated settings and clean test shells:
@@ -109,10 +118,15 @@ CoreGraphics selection, Unicode/ANSI search, resize, appearance settings, native
 tabs, normal exit and forced shutdown. It does not measure typing latency or
 substitute for manual IME and accessibility checks.
 
-Splits, editable TOML configuration, hot reload, shortcut editing, metrics and
+Splits, editable TOML configuration, hot reload, metrics and
 session restoration are deferred. Keep additions focused and measure their cost.
 The separate [benchmark fixture](benchmarks/README.md) and raw experiment data
 remain available for reproducibility.
+
+Release builds check on launch and approximately hourly while running. Updates
+are signed and downloaded automatically; installation respects session-close
+confirmation. Use **Lean Term → Check for Updates** for an immediate check.
+Settings can disable automatic checks or downloads.
 
 ## Branding and license
 

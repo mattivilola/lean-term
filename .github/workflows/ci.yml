@@ -22,6 +22,7 @@ jobs:
           python3 -m py_compile script/*.py benchmarks/*.py branding/*.py
           bash -n script/*.sh
           python3 -m unittest discover -s benchmarks -p 'test_*.py'
+          python3 -m unittest script.test_release
       - name: Test
         run: ./script/build_and_run.sh --test
       - name: Build Release app

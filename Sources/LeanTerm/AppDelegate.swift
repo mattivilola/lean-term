@@ -5,13 +5,17 @@ import LeanTermCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var sessions: [UUID: TerminalWindow] = [:]
     private(set) var preferences: Preferences
+    private(set) var shortcuts: ShortcutConfiguration
     let defaults: UserDefaults
     private let smokeDefaultsDomain: String?
     private var settingsWindow: SettingsWindow?
+    private var shortcutsWindow: ShortcutsWindow?
+    private var aboutWindow: AboutWindow?
     private var terminationPending = false
     private var quitApproved = false
     private var lastActiveSessionID: UUID?
     private var smokeCheck: SmokeCheck?
+    lazy var updates = Updates(disabled: smokeDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
 
     override init() {
@@ -23,10 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if CommandLine.arguments.contains("--reset-settings") {
             Preferences.reset(in: defaults)
             WindowPlacement.reset(in: defaults)
+            defaults.removeObject(forKey: "SUEnableAutomaticChecks")
+            defaults.removeObject(forKey: "SUAutomaticallyUpdate")
         } else if CommandLine.arguments.contains("--reset-window") {
             WindowPlacement.reset(in: defaults)
         }
         preferences = Preferences(defaults: defaults)
+        shortcuts = ShortcutConfiguration(defaults: defaults)
         super.init()
     }
 
@@ -69,6 +76,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func newTab(_ sender: Any?) {
         let parent = activeSession
         newTerminal(directory: parent?.currentDirectory, tabOf: parent)
+    }
+    @objc func nextTab(_ sender: Any?) { cycleTab(by: 1) }
+    @objc func previousTab(_ sender: Any?) { cycleTab(by: -1) }
+    private func cycleTab(by offset: Int) {
+        guard let current = activeSession?.window, let group = current.tabGroup,
+              group.windows.count > 1, let index = group.windows.firstIndex(of: current) else { return }
+        let windows = group.windows
+        let next = windows[(index + offset + windows.count) % windows.count]
+        group.selectedWindow = next
+        next.makeKeyAndOrderFront(nil)
     }
     func remove(_ session: TerminalWindow) {
         sessions.removeValue(forKey: session.id)
@@ -130,6 +147,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         settingsWindow?.showWindow(nil)
         settingsWindow?.window?.makeKeyAndOrderFront(nil)
     }
+    @objc func showShortcuts(_ sender: Any?) {
+        if shortcutsWindow == nil { shortcutsWindow = ShortcutsWindow(app: self) }
+        shortcutsWindow?.refresh()
+        shortcutsWindow?.showWindow(nil)
+        shortcutsWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+    func updateShortcuts(_ value: ShortcutConfiguration) {
+        shortcuts = value
+        value.save(to: defaults)
+        buildMenus()
+        shortcutsWindow?.refresh()
+    }
     func updatePreferences(_ value: Preferences) {
         var value = value
         value.fontSize = Preferences.validFontSize(value.fontSize)
@@ -160,13 +189,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     @objc private func clearScrollback(_ sender: Any?) { activeSession?.terminal.clearScrollback() }
     @objc private func about(_ sender: Any?) {
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Lean Term", .applicationVersion: "0.1.0 · Development",
-            .credits: NSAttributedString(string: "A little less terminal. A lot more focus.\nNative macOS · Free and open source\nleanterm.com")
-        ])
+        if aboutWindow == nil { aboutWindow = AboutWindow() }
+        aboutWindow?.showWindow(nil)
+        aboutWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if [#selector(nextTab), #selector(previousTab)].contains(menuItem.action) {
+            return activeSession != nil && !terminationPending
+        }
         if [#selector(clearScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
             return activeSession != nil
         }
@@ -180,25 +211,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item.submenu = child; menu.addItem(item); return child
         }
         func add(_ menu: NSMenu, _ title: String, _ selector: Selector, _ key: String = "", target: AnyObject? = nil,
-                 modifiers: NSEvent.ModifierFlags = [.command], tag: Int = 0) {
-            let item = NSMenuItem(title: title, action: selector, keyEquivalent: key)
-            item.target = target; item.keyEquivalentModifierMask = modifiers; item.tag = tag; menu.addItem(item)
+                 modifiers: NSEvent.ModifierFlags = [.command], tag: Int = 0, shortcut: ShortcutAction? = nil) {
+            let binding = shortcut.flatMap { shortcuts.binding(for: $0) }
+            let item = NSMenuItem(title: title, action: selector, keyEquivalent: shortcut == nil ? key : (binding?.key ?? ""))
+            item.target = target; item.keyEquivalentModifierMask = shortcut == nil ? modifiers : (binding?.modifiers.eventFlags ?? .command)
+            item.tag = tag
+            if let shortcut { item.representedObject = "shortcut:" + shortcut.rawValue }
+            menu.addItem(item)
         }
         let application = group("Lean Term")
-        add(application, "About Lean Term", #selector(about), target: self)
+        add(application, "About Lean Term", #selector(about), target: self, shortcut: .about)
+        if updates.available {
+            add(application, "Check for Updates…", #selector(Updates.checkForUpdates(_:)), target: updates, shortcut: .updates)
+        }
         application.addItem(.separator())
-        add(application, "Settings…", #selector(showSettings), ",", target: self)
+        add(application, "Settings…", #selector(showSettings), target: self, shortcut: .settings)
         application.addItem(.separator())
         add(application, "Hide Lean Term", #selector(NSApplication.hide(_:)), "h")
         add(application, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", modifiers: [.command, .option])
         add(application, "Show All", #selector(NSApplication.unhideAllApplications(_:)))
         application.addItem(.separator())
-        add(application, "Quit Lean Term", #selector(NSApplication.terminate(_:)), "q")
+        add(application, "Quit Lean Term", #selector(NSApplication.terminate(_:)), shortcut: .quit)
         let file = group("File")
-        add(file, "New Window", #selector(newWindow), "n", target: self)
-        add(file, "New Tab", #selector(newTab), "t", target: self)
+        add(file, "New Window", #selector(newWindow), target: self, shortcut: .newWindow)
+        add(file, "New Tab", #selector(newTab), target: self, shortcut: .newTab)
         file.addItem(.separator())
-        add(file, "Close", #selector(NSWindow.performClose(_:)), "w")
+        add(file, "Close", #selector(NSWindow.performClose(_:)), shortcut: .close)
         let edit = group("Edit")
         add(edit, "Undo", Selector(("undo:")), "z")
         add(edit, "Redo", Selector(("redo:")), "z", modifiers: [.command, .shift])
@@ -208,23 +246,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(edit, "Paste", #selector(NSText.paste(_:)), "v")
         add(edit, "Select All", #selector(NSText.selectAll(_:)), "a")
         edit.addItem(.separator())
-        add(edit, "Find…", #selector(NSResponder.performTextFinderAction(_:)), "f", tag: NSTextFinder.Action.showFindInterface.rawValue)
-        add(edit, "Find Next", #selector(NSResponder.performTextFinderAction(_:)), "g", tag: NSTextFinder.Action.nextMatch.rawValue)
-        add(edit, "Find Previous", #selector(NSResponder.performTextFinderAction(_:)), "g", modifiers: [.command, .shift], tag: NSTextFinder.Action.previousMatch.rawValue)
+        add(edit, "Find…", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.showFindInterface.rawValue, shortcut: .find)
+        add(edit, "Find Next", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.nextMatch.rawValue, shortcut: .findNext)
+        add(edit, "Find Previous", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.previousMatch.rawValue, shortcut: .findPrevious)
         let terminal = group("Terminal")
-        add(terminal, "Clear Scrollback", #selector(clearScrollback), "k", target: self)
+        add(terminal, "Clear Scrollback", #selector(clearScrollback), target: self, shortcut: .clearScrollback)
         terminal.addItem(.separator())
-        add(terminal, "Larger Text", #selector(largerFont), "+", target: self)
-        add(terminal, "Smaller Text", #selector(smallerFont), "-", target: self)
-        add(terminal, "Default Text Size", #selector(resetFont), "0", target: self)
+        add(terminal, "Larger Text", #selector(largerFont), target: self, shortcut: .largerText)
+        add(terminal, "Smaller Text", #selector(smallerFont), target: self, shortcut: .smallerText)
+        add(terminal, "Default Text Size", #selector(resetFont), target: self, shortcut: .defaultText)
         let windows = group("Window")
         add(windows, "Minimize", #selector(NSWindow.performMiniaturize(_:)), "m")
         add(windows, "Zoom", #selector(NSWindow.performZoom(_:)))
         windows.addItem(.separator())
-        add(windows, "Show Next Tab", #selector(NSWindow.selectNextTab(_:)), "]", modifiers: [.command, .shift])
-        add(windows, "Show Previous Tab", #selector(NSWindow.selectPreviousTab(_:)), "[", modifiers: [.command, .shift])
+        add(windows, "Next Tab", #selector(nextTab), target: self, shortcut: .nextTab)
+        add(windows, "Previous Tab", #selector(previousTab), target: self, shortcut: .previousTab)
+        for (action, selector) in [(ShortcutAction.previousTab, #selector(previousTab)), (.nextTab, #selector(nextTab))] {
+            for binding in action.aliases {
+                let item = NSMenuItem(title: action.title, action: selector, keyEquivalent: binding.key)
+                item.target = self; item.keyEquivalentModifierMask = binding.modifiers.eventFlags
+                item.isHidden = true; item.allowsKeyEquivalentWhenHidden = true
+                item.representedObject = "shortcut:" + action.rawValue
+                windows.addItem(item)
+            }
+        }
         add(windows, "Show All Tabs", #selector(NSWindow.toggleTabOverview(_:)))
         NSApp.windowsMenu = windows
+        let help = group("Help")
+        add(help, "Keyboard Shortcuts…", #selector(showShortcuts), target: self, shortcut: .shortcuts)
+        NSApp.helpMenu = help
         NSApp.mainMenu = menu
     }
     private func argument(_ name: String) -> String? {

@@ -74,6 +74,12 @@ final class SmokeCheck {
         }
         try expect(a.window?.tabGroup === b.window?.tabGroup && a.window?.tabbedWindows?.count == 2,
                    "Two native tabs own independent sessions")
+        try await wait { app.activeSession === b }
+        app.nextTab(nil)
+        try await wait { app.activeSession === a }
+        app.previousTab(nil)
+        try await wait { app.activeSession === b }
+        try expect(true, "Tab navigation wraps forward and backward")
         guard let c = app.newTerminal(smoke: true) else { throw Failure(message: "No independent window") }
         a.window?.setFrame(CGRect(x: 50, y: 80, width: 700, height: 480), display: true)
         a.window?.makeKeyAndOrderFront(nil)
@@ -104,7 +110,8 @@ final class SmokeCheck {
     }
     private func finish(passed: Bool) {
         let result: [String: Any] = ["passed": passed, "checks": checks, "renderer": "CoreGraphics",
-                                   "version": "0.1.0", "sessionCount": app?.sessions.count ?? -1]
+                                   "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development",
+                                   "sessionCount": app?.sessions.count ?? -1]
         do {
             let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: report, options: .atomic)

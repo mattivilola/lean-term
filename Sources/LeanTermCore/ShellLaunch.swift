@@ -49,7 +49,7 @@ public struct ShellLaunch: Sendable {
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["TERM_PROGRAM"] = "LeanTerm"
-        env["TERM_PROGRAM_VERSION"] = "0.1.0"
+        env["TERM_PROGRAM_VERSION"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
         if env["PATH"]?.isEmpty != false { env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" }
         if env["LANG"]?.isEmpty != false && env["LC_ALL"]?.isEmpty != false { env["LANG"] = "en_US.UTF-8" }
         environment = env.keys.sorted().map { "\($0)=\(env[$0]!)" }

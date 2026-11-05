@@ -17,3 +17,9 @@ branding/sources/lean-vs-code-crt-master.png
 branding/approved/crt-family/lean-vs-code/
 branding/approved/crt-family/manifest.json
 script/desktop_bench.sh
+.env
+.env.local
+*.p12
+*.p8
+release/*private*
+release/*.key
