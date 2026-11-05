@@ -48,5 +48,20 @@ signed public update feed and reported 0.1.1 as current. Release-only update
 settings were also checked in the native UI.
 
 An independent CryptoKit Ed25519 check accepts the release ZIP and rejects a
-one-byte modification. The real 0.1.1 → 0.1.2 update remains a separate runtime
-acceptance check; publishing a feed alone is not proof of installation.
+one-byte modification.
+
+The real 0.1.1 → 0.1.2 in-app update passed on 5 November 2026. The installed
+0.1.1 discovered the public signed feed, downloaded and prepared 0.1.2, and
+asked before closing the running terminal. Cancel kept the session alive; a
+second update request resumed the prepared download. After confirmation,
+Sparkle installed and relaunched 0.1.2. About showed the new version, and another
+feed check reported it current. All eight saved appearance/font/cursor/Meta,
+shortcut and window-frame preference entries matched their pre-update values;
+the installed icon matched the canonical asset byte for byte.
+
+Both releases passed exact-source macOS CI, Developer ID signature checks,
+Apple notarization and Gatekeeper. Version 0.1.2 is bound to source commit
+`756dee2375af089f000b7239fc7d310465427210`. Its published ZIP is 5,250,828 bytes,
+SHA-256 `8a993bd241bb6e8040ecc2a1816aa1f379a296ecd0cdb535fc12ca27b0e83647`.
+This verifies an immediate manual check and update through the production feed;
+future hourly checks and unattended long-running behavior have not been soaked.
