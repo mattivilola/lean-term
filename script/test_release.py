@@ -11,6 +11,15 @@ from script import release
 
 
 class ReleaseHelpersTests(unittest.TestCase):
+    def test_missing_tag_endpoint_finds_existing_authenticated_draft(self) -> None:
+        from subprocess import CompletedProcess
+        draft = {"tag_name": "v0.1.1", "draft": True, "id": 123}
+        responses = [CompletedProcess([], 1, "", "HTTP 404"),
+                     CompletedProcess([], 0, json.dumps([draft]), "")]
+        with patch.object(release, "command", side_effect=responses):
+            self.assertEqual(release.gh_api("releases/tags/v0.1.1"), draft)
+
+
     def test_github_missing_tag_commit_422_is_distinct_from_other_failures(self) -> None:
         with patch.object(release, "command") as run:
             run.return_value.returncode = 1

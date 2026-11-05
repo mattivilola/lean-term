@@ -257,6 +257,23 @@ def gh_api(path: str) -> dict[str, Any] | list[Any] | None:
         if "http 404" in error or "not found" in error or (
             path.startswith("commits/") and "http 422" in error and "no commit found for sha" in error
         ):
+            # GitHub's tag endpoint excludes unpublished drafts. Query the
+            # authenticated release list rather than creating a second draft.
+            if path.startswith("releases/tags/"):
+                tag = path.removeprefix("releases/tags/")
+                page = 1
+                while True:
+                    releases = gh_api(f"releases?per_page=100&page={page}")
+                    if not isinstance(releases, list):
+                        raise ReleaseError("Cannot enumerate GitHub draft releases")
+                    matches = [r for r in releases if isinstance(r, dict) and r.get("tag_name") == tag]
+                    if len(matches) > 1:
+                        raise ReleaseError(f"Multiple GitHub releases use {tag}; inspect them before continuing")
+                    if matches:
+                        return matches[0]
+                    if len(releases) < 100:
+                        break
+                    page += 1
             return None
         detail = (result.stderr or result.stdout or "").strip()
         raise ReleaseError(f"GitHub API request failed for {path}: {detail}")
