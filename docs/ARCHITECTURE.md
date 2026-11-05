@@ -93,3 +93,21 @@ sessions, and uses normal NSApplication termination so updater behavior is kept.
 Cmd-K feeds local erase-display/cursor-home operations and discards normal
 scrollback through SwiftTerm’s supported APIs. It never sends a key or command
 to the child process, never resets terminal modes, and clears stale selection.
+
+## Activity scanner and tab marks
+
+A foreground job is running when `tcgetpgrp` on the PTY returns a process group
+other than the shell’s. Alternate-screen programs (vim, htop) show nothing. SwiftTerm’s
+supported output hook, which runs on the parse thread, only bumps an atomic counter and
+arms a flag; the first output after each sample hops once to the main thread to wake the
+monitor. A pure model (`SessionActivityModel`) turns samples into idle, sweeping (output
+within 5 s, after a 0.4 s reveal delay) or holding, and reports a long command (10 s or
+more) that finished.
+
+The monitor’s 0.5 s timer exists only while a job is running or output just changed, so an
+all-idle app has no activity timer and no wakeups. The scanner is a 2 pt layer in the
+padding above the terminal, never over it. Its sweep is one Core Animation animation
+capped at 30 fps and rendered by the render server, so there is no per-frame main-thread
+work. It is removed for hidden windows, and replaced by a static line under Reduce Motion
+or Low Power Mode. The tab accessory shows a filled dot while busy and a ring when a long
+command finished in a window you were not looking at, cleared when that window becomes key.

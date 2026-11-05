@@ -27,7 +27,11 @@ functional checks, not a finished-product performance benchmark or a notarized r
 
 The native smoke mode uses an isolated preference domain and clean test shells;
 it removes its own preferences on exit. Its bounded waits run only in test mode.
-Normal app operation adds no polling timer.
+The activity monitor polls only while a command runs or output just arrived; no timer exists while sessions are idle. The smoke run asserts that `sleep 1.2` shows the
+activity indicator with the monitor polling, then returns to idle with the monitor timer stopped.
+
+Manual: with every session idle, Activity Monitor shows no extra CPU or wakeups from the
+activity scanner; the typing benchmark is unchanged with the scanner and tab marks on or off.
 
 The development packager and running app share a file lock, so rebuilding cannot
 overwrite the bundle while it contains live sessions. Quit checks observe app

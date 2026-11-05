@@ -1,6 +1,24 @@
 import AppKit
 import LeanTermCore
+import Darwin
 import SwiftTerm
+import Synchronization
+
+/// Cross-thread output signal for the PTY parse thread. It only touches atomics.
+final class SessionActivityCounter: Sendable {
+    private let output = Atomic<UInt64>(0)
+    private let armed = Atomic<Bool>(false)
+
+    var outputCount: UInt64 { output.load(ordering: .relaxed) }
+
+    /// Counts one output batch. Returns true when the sampler should be woken, at most once per sample.
+    func noteOutput() -> Bool {
+        output.add(1, ordering: .relaxed)
+        return armed.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged
+    }
+
+    func disarm() { armed.store(false, ordering: .relaxed) }
+}
 
 @MainActor
 final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTerminalViewDelegate, NSToolbarDelegate {
@@ -11,6 +29,13 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private let status = NSTextField(labelWithString: "")
     private let dimensions = NSTextField(labelWithString: "")
     let resourceStatus = ResourceStatusView()
+    private let scanner = ActivityScannerView()
+    private let tabMark = TabActivityView()
+    private let activityCounter = SessionActivityCounter()
+    private var activityModel = SessionActivityModel()
+    private var finishedUnseen = false
+    weak var activityMonitor: SessionActivityMonitor?
+    var activityIndicator: ActivityIndicator { activityModel.indicator }
     private let restart = NSButton(title: "New Session", target: nil, action: nil)
     private var fallback: DispatchWorkItem?
     private(set) var state: State = .starting
@@ -49,6 +74,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         window.isReleasedWhenClosed = false
         window.contentView = surface
         terminal.processDelegate = self
+        installOutputHandler()
         terminal.bellStyle = .none
         // This remains the measured CoreGraphics/CoreText implementation.
         do { try terminal.setUseMetal(false) }
@@ -60,6 +86,9 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         footer.orientation = .horizontal; footer.spacing = 12
         footer.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(footer)
+        scanner.translatesAutoresizingMaskIntoConstraints = false
+        surface.addSubview(scanner)
+        window.tab.accessoryView = tabMark
         status.font = .systemFont(ofSize: 11)
         status.lineBreakMode = .byTruncatingMiddle
         status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -70,6 +99,10 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         restart.target = self; restart.action = #selector(restartSession)
         restart.isHidden = true
         NSLayoutConstraint.activate([
+            scanner.topAnchor.constraint(equalTo: surface.topAnchor, constant: 5),
+            scanner.heightAnchor.constraint(equalToConstant: 2),
+            scanner.leadingAnchor.constraint(equalTo: terminal.leadingAnchor),
+            scanner.trailingAnchor.constraint(equalTo: terminal.trailingAnchor),
             terminal.topAnchor.constraint(equalTo: surface.topAnchor, constant: 12),
             terminal.leadingAnchor.constraint(equalTo: surface.leadingAnchor, constant: 14),
             terminal.trailingAnchor.constraint(equalTo: surface.trailingAnchor, constant: -14),
@@ -131,11 +164,68 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     func windowDidBecomeKey(_ notification: Notification) {
         app?.recordActiveSession(self)
         savePlacement()
-        app?.refreshResourceMonitoring()
+        finishedUnseen = false
+        visibilityChanged()
     }
-    func windowDidChangeOcclusionState(_ notification: Notification) { app?.refreshResourceMonitoring() }
-    func windowDidMiniaturize(_ notification: Notification) { app?.refreshResourceMonitoring() }
-    func windowDidDeminiaturize(_ notification: Notification) { app?.refreshResourceMonitoring() }
+    func windowDidChangeOcclusionState(_ notification: Notification) { visibilityChanged() }
+    func windowDidMiniaturize(_ notification: Notification) { visibilityChanged() }
+    func windowDidDeminiaturize(_ notification: Notification) { visibilityChanged() }
+
+    private func visibilityChanged() {
+        app?.refreshResourceMonitoring()
+        renderActivity()
+    }
+
+    private func installOutputHandler() {
+        let counter = activityCounter
+        terminal.setProcessOutputHandler { [weak self] in
+            guard counter.noteOutput() else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.activityMonitor?.wake() }
+            }
+        }
+    }
+
+    /// Samples the foreground job once. Returns whether another sample is needed.
+    func sampleActivity(at time: TimeInterval) -> Bool {
+        var foreground = false
+        if let process = terminal.process, process.running {
+            let group = tcgetpgrp(process.childfd)
+            foreground = group > 0 && group != process.shellPid
+        }
+        let sample = SessionActivitySample(
+            foregroundJobRunning: foreground,
+            alternateScreen: terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true,
+            outputCount: activityCounter.outputCount, time: time)
+        activityCounter.disarm()
+        if activityModel.record(sample) == .finishedLongCommand, preferences.showTabActivity,
+           !(window?.isKeyWindow == true && isResourceDisplayVisible && NSApp.isActive) {
+            finishedUnseen = true
+        }
+        if activityModel.indicator != .idle { finishedUnseen = false }
+        renderActivity()
+        return activityModel.needsPolling
+    }
+
+    func motionOptionsChanged() { scanner.motionOptionsChanged() }
+
+    func resetActivity() {
+        activityModel.reset()
+        finishedUnseen = false
+        renderActivity()
+    }
+
+    private func renderActivity() {
+        let indicator = activityModel.indicator
+        scanner.setIndicator(preferences.showActivityScanner ? indicator : .idle, visible: isResourceDisplayVisible)
+        if !preferences.showTabActivity {
+            tabMark.setMark(.hidden)
+        } else if indicator != .idle {
+            tabMark.setMark(.running)
+        } else {
+            tabMark.setMark(finishedUnseen ? .done : .hidden)
+        }
+    }
     func windowDidResignKey(_ notification: Notification) { savePlacement() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
     func windowWillEnterFullScreen(_ notification: Notification) { savePlacement(); fullscreenTransition = true }
@@ -144,11 +234,13 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     func apply(_ value: Preferences) {
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
+        if !value.showTabActivity { finishedUnseen = false }
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
         applyTheme()
+        renderActivity()
     }
 
     private func applyTheme() {
@@ -166,6 +258,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
+        scanner.applyAccent(theme.accent)
+        tabMark.applyAccent(theme.accent)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -223,6 +317,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     }
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         terminationCount += 1
+        resetActivity()
         let wasClosing = state == .closing
         state = .exited
         fallback?.cancel(); fallback = nil
@@ -236,6 +331,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     }
     func processFailedToStart(source: TerminalView, error: LocalProcessError) {
         state = .failed
+        resetActivity()
         status.stringValue = "Couldn’t start the shell"
         restart.isHidden = false
     }

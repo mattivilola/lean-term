@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var lastSessionQuitQueued = false
     var permitsAutomaticSessionClose: Bool { !terminationPending }
     let metricsMonitor = ProcessMetricsMonitor()
+    let activityMonitor = SessionActivityMonitor()
     lazy var updates = Updates(disabled: smokeDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
 
@@ -49,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 session.resourceStatus.update(snapshot)
             }
         }
+        activityMonitor.sessions = { [weak self] in self.map { Array($0.sessions.values) } ?? [] }
         buildMenus()
         applyPreferences()
         if let report = argument("--smoke-test") {
@@ -72,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard !terminationPending else { return nil }
         let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
+        session.activityMonitor = activityMonitor
         let placement = WindowPlacement(defaults: defaults)
         session.restorePlacement(placement, tabOf: tabOf)
         sessions[session.id] = session
@@ -135,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationWillTerminate(_ notification: Notification) {
         smokeCheck?.willTerminate()
         metricsMonitor.setRunning(false)
+        activityMonitor.enabled = false
         if let smokeDefaultsDomain { defaults.removePersistentDomain(forName: smokeDefaultsDomain) }
     }
 
@@ -144,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })?.savePlacement()
         guard !live.isEmpty else { return .terminateNow }
         terminationPending = true
+        refreshActivityMonitoring()
         refreshResourceMonitoring()
         let alert = NSAlert()
         alert.messageText = live.count == 1 ? "Quit this terminal session?" : "Quit \(live.count) terminal sessions?"
@@ -160,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard response == .alertFirstButtonReturn else {
             terminationPending = false
             refreshResourceMonitoring()
+            refreshActivityMonitoring()
             NSApp.reply(toApplicationShouldTerminate: false)
             return
         }
@@ -206,6 +212,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         for session in sessions.values { session.apply(preferences) }
         refreshResourceMonitoring()
+        refreshActivityMonitoring()
+    }
+    private func refreshActivityMonitoring() {
+        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity) && !terminationPending
     }
     func refreshResourceMonitoring() {
         metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })

@@ -21,6 +21,8 @@ public struct Preferences: Equatable, Sendable {
     public var cursor: Cursor = .bar
     public var optionAsMeta = false
     public var showResourceUsage = true
+    public var showActivityScanner = true
+    public var showTabActivity = true
     public var closeTabOnShellExit = false
     public var quitAfterLastSession = false
     public static let scrollbackLines = 10_000
@@ -36,6 +38,8 @@ public struct Preferences: Equatable, Sendable {
         cursor = Cursor(rawValue: defaults.string(forKey: "cursor") ?? "") ?? .bar
         optionAsMeta = defaults.bool(forKey: "optionAsMeta")
         showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
+        showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
+        showTabActivity = defaults.object(forKey: "showTabActivity") == nil ? true : defaults.bool(forKey: "showTabActivity")
         closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
         quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
     }
@@ -45,7 +49,7 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -58,6 +62,8 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(cursor.rawValue, forKey: "cursor")
         defaults.set(optionAsMeta, forKey: "optionAsMeta")
         defaults.set(showResourceUsage, forKey: "showResourceUsage")
+        defaults.set(showActivityScanner, forKey: "showActivityScanner")
+        defaults.set(showTabActivity, forKey: "showTabActivity")
         defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
         defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
     }

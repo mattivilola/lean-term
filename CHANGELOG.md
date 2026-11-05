@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Optional running-command scanner above the terminal and tab marks for busy and finished long commands, with no idle polling and a render-server animation that pauses for hidden windows, Reduce Motion and Low Power Mode.
+
 ## 0.1.3 — Native polish
 
 - SF Mono Regular 13 becomes the default for new configurations; existing font choices remain.
