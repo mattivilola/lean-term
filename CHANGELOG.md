@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 — First automatic update
+
+- First maintenance release delivered through the built-in signed updater.
+- Keeps the same native terminal behavior, branding and saved preferences.
+
 ## 0.1.1 — First public release
 
 - Native Swift/AppKit terminal with SwiftTerm's CoreGraphics/CoreText renderer.
