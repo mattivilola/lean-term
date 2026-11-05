@@ -123,3 +123,6 @@ only while output changes, so typing over ssh does not animate; a root leader sh
 beside the normal dot. The remote working directory comes from OSC 7 with a non-local host and
 only feeds the subtitle; it never changes the local directory or the represented URL. Limitation:
 ssh started inside a local tmux or screen is not visible, since the foreground job is the multiplexer.
+
+OSC 9;4 progress reports use SwiftTerm's own 3 pt bar at the top of the terminal; Lean Term
+only tints it with the brand phosphor colour. SwiftTerm keeps the error and paused colours.

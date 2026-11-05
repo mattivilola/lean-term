@@ -302,6 +302,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
         scanner.applyAccent(theme.phosphor)
+        terminal.progressBarColor = theme.phosphor
         tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber)
     }
 
