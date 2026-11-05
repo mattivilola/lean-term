@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — Command activity
 
 - Optional running-command scanner above the terminal and tab marks for busy and finished long commands, with no idle polling and a render-server animation that pauses for hidden windows, Reduce Motion and Low Power Mode.
+- Emerald CRT activity marks stay consistent across palettes; scanner sweeps resume when returning to a running tab.
 
 ## 0.1.3 — Native polish
 

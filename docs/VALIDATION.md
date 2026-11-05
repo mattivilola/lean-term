@@ -30,8 +30,9 @@ it removes its own preferences on exit. Its bounded waits run only in test mode.
 The activity monitor polls only while a command runs or output just arrived; no timer exists while sessions are idle.
 Its detection rules are covered by `SessionActivityTests`.
 
-Manual: with every session idle, Activity Monitor shows no extra CPU or wakeups from the
-activity scanner; the typing benchmark is unchanged with the scanner and tab marks on or off.
+Manual follow-up: compare idle CPU/wakeups and typing latency with the activity
+scanner and tab marks enabled and disabled. An on/off typing benchmark is not
+part of the recorded release checks below.
 
 The development packager and running app share a file lock, so rebuilding cannot
 overwrite the bundle while it contains live sessions. Quit checks observe app
@@ -120,3 +121,19 @@ enabled exit policies/resource graphs. The running footer displayed live CPU
 and memory readings. The installed executable matched the staged executable
 byte for byte and its complete code signature verified. The new default font
 does not overwrite other users’ saved font choices.
+
+## 0.2.0 — Release checks
+
+All 22 Swift core tests passed, including the ten command-activity model tests.
+All 14 release-helper tests and the benchmark-calculation test passed. The
+Release app build passed, followed by 26 native integration checks using
+isolated settings and clean test shells. Four additional launches passed every
+combination of close-on-shell-exit and quit-after-last-session, including real
+application termination when configured. A separate quit-cancellation launch
+retained finished output after Cancel. All test sessions cleaned up.
+
+This release includes the command scanner and busy/finished tab marks, emerald
+activity colors across palettes, and sweep restoration when returning to a tab.
+Activity detection rules have automated model coverage; the native regression
+checks do not assess animation appearance. Performance figures remain the
+recorded 0.1.2 measurements; no new latency or scanner on/off results are claimed.
