@@ -3,8 +3,8 @@ import AppKit
 /// What the tab says about the session itself, beside the activity dot.
 enum SessionMark: Equatable {
     case none
-    /// The associated value is the tooltip and accessibility description.
-    case remote(String)
+    /// The description is the tooltip and accessibility text; the tint overrides amber for a host colour rule.
+    case remote(String, tint: NSColor?)
     case root
 }
 
@@ -92,13 +92,13 @@ final class TabActivityView: NSView {
             symbol.image = nil
             symbol.toolTip = nil
             toolTip = nil
-        case .remote(let description):
+        case .remote(let description, _):
             show(symbol: "network", description: description)
         case .root:
             show(symbol: "number", description: "Running as root")
         }
         symbol.isHidden = !showsSymbol
-        symbol.contentTintColor = amber
+        if case .remote(_, let tint?) = session { symbol.contentTintColor = tint } else { symbol.contentTintColor = amber }
         bellSymbol.image = showsBell ? Self.symbolImage("bell.fill", description: "Bell rang") : nil
         bellSymbol.toolTip = showsBell ? "Bell rang" : nil
         bellSymbol.isHidden = !showsBell
@@ -125,7 +125,7 @@ final class TabActivityView: NSView {
         var parts: [String] = []
         switch session {
         case .none: break
-        case .remote(let description): parts.append(description)
+        case .remote(let description, _): parts.append(description)
         case .root: parts.append("Running as root")
         }
         if showsBell { parts.append("Bell rang") }

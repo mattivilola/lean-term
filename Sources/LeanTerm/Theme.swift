@@ -16,12 +16,14 @@ struct TerminalTheme {
     let accent: NSColor
     /// Brand CRT phosphor from the emerald `>_` icon, independent of palette.
     let phosphor: NSColor
+    private let dark: Bool
     /// Amber CRT phosphor for remote and root marks, independent of palette.
     let amber: NSColor
     let selection: NSColor
     let ansi: [SwiftTerm.Color]
 
     init(palette: Preferences.Palette, dark: Bool) {
+        self.dark = dark
         let forest = palette == .forest
         background = NSColor(hex: dark ? (forest ? 0x101b17 : 0x181c23) : (forest ? 0xf5f8f3 : 0xf7f8fa))
         foreground = NSColor(hex: dark ? 0xe6eee8 : 0x24332b)
@@ -35,6 +37,19 @@ struct TerminalTheme {
             : [0x25332c, 0xb32e39, 0x28683b, 0x89600a, 0x285b9b, 0x7f408e, 0x176a70, 0xc3cec7,
                0x63746a, 0xc43c43, 0x327747, 0x946c0c, 0x356bac, 0x8c4a9c, 0x227b80, 0xe9eeea]
         ansi = colors.map { .init(red8: UInt16(($0 >> 16) & 255), green8: UInt16(($0 >> 8) & 255), blue8: UInt16($0 & 255)) }
+    }
+}
+
+extension TerminalTheme {
+    /// Tab and scanner tint for a host colour rule.
+    func hostColor(_ color: HostColor) -> NSColor {
+        switch color {
+        case .red: NSColor(hex: dark ? 0xff7a7a : 0xb3261e)
+        case .amber: amber
+        case .green: phosphor
+        case .blue: NSColor(hex: dark ? 0x8ab8ff : 0x2f5fa8)
+        case .purple: NSColor(hex: dark ? 0xc9a3ff : 0x7a44a8)
+        }
     }
 }
 

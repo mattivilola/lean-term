@@ -245,6 +245,18 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         if session != previous { updateSubtitle() }
     }
 
+    /// The colour of the first host rule matching the remote host (OSC 7 host first, then the ssh destination).
+    private var hostTint: NSColor? {
+        guard preferences.showSessionMarks, case .remote(_, let parsed) = session,
+              let host = remoteLocation?.host ?? parsed,
+              let color = Preferences.hostColor(for: host, in: preferences.hostColorRules) else { return nil }
+        return theme.hostColor(color)
+    }
+
+    private var theme: TerminalTheme {
+        TerminalTheme(palette: preferences.palette, dark: surface.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+    }
+
     private func updateSubtitle() {
         let local = Self.displayPath(currentDirectory)
         guard preferences.showSessionMarks else { window?.subtitle = local; return }
@@ -284,7 +296,9 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             tabMark.setMark(finishedUnseen ? .done : .hidden)
         }
         tabMark.setAttention(bellUnseen)
-        tabMark.setSession(preferences.showSessionMarks ? session.mark : .none)
+        let tint = hostTint
+        scanner.setHostTint(tint)
+        tabMark.setSession(preferences.showSessionMarks ? session.mark(tint: tint) : .none)
     }
     func windowDidResignKey(_ notification: Notification) { savePlacement(); visibilityChanged() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
@@ -301,12 +315,10 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         terminal.optionAsMetaKey = value.optionAsMeta
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
         applyTheme()
-        renderActivity()
     }
 
     private func applyTheme() {
-        let dark = surface.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let theme = TerminalTheme(palette: preferences.palette, dark: dark)
+        let theme = theme
         terminal.installColors(theme.ansi)
         terminal.nativeBackgroundColor = theme.background
         terminal.nativeForegroundColor = theme.foreground
@@ -322,6 +334,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         scanner.applyAccent(theme.phosphor)
         terminal.progressBarColor = theme.phosphor
         tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber)
+        renderActivity()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -379,6 +392,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         } else if session.isRemote, let location = ShellLaunch.remoteDirectory(from: directory) {
             remoteLocation = location
             updateSubtitle()
+            renderActivity()
         }
     }
     func processTerminated(source: TerminalView, exitCode: Int32?) {
@@ -451,12 +465,12 @@ private extension ForegroundSession {
         return false
     }
 
-    var mark: SessionMark {
+    func mark(tint: NSColor?) -> SessionMark {
         switch self {
         case .local: return .none
         case .root: return .root
         case .remote(let tool, let host):
-            return .remote(host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)")
+            return .remote(host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)", tint: tint)
         }
     }
 }

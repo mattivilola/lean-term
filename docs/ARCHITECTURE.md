@@ -136,3 +136,7 @@ only when the preference is turned on, and nothing touches the notification cent
 is off or in smoke mode. A long command that finishes in a tab you are not viewing posts one
 notification, replaced per tab and cleared when the tab is viewed or closed; clicking it
 brings that tab forward. The Dock badge counts tabs with an unseen finished command or bell.
+
+Host colour rules are stored as JSON in UserDefaults, none by default. Each is matched with
+`fnmatch` (case-insensitive) against the remote host, OSC 7 host first, and colours the tab
+symbol and draws a steady scanner line while the session is remote.
