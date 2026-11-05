@@ -37,7 +37,7 @@ import Testing
     #expect(Preferences.validFontSize(.nan) == 13)
     var value = Preferences()
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }

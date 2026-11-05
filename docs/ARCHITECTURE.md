@@ -130,3 +130,9 @@ only tints it with the brand phosphor colour. SwiftTerm keeps the error and paus
 The bell is observed through SwiftTerm’s open `bell` hook (`LeanTerminalView`), coalesced to
 one main-thread hop per burst. It stays silent and only puts an amber bell in the tab of a
 session that is not being viewed, cleared when its window becomes key.
+
+Notifications are opt-in (`notifyInBackground`, off by default). The permission is requested
+only when the preference is turned on, and nothing touches the notification centre while it
+is off or in smoke mode. A long command that finishes in a tab you are not viewing posts one
+notification, replaced per tab and cleared when the tab is viewed or closed; clicking it
+brings that tab forward. The Dock badge counts tabs with an unseen finished command or bell.

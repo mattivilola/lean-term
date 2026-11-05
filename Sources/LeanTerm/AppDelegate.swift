@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var permitsAutomaticSessionClose: Bool { !terminationPending }
     let metricsMonitor = ProcessMetricsMonitor()
     let activityMonitor = SessionActivityMonitor()
+    lazy var notifier = BackgroundNotifier(disabled: smokeDefaultsDomain != nil)
     lazy var updates = Updates(disabled: smokeDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
 
@@ -51,6 +52,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         activityMonitor.sessions = { [weak self] in self.map { Array($0.sessions.values) } ?? [] }
+        notifier.openSession = { [weak self] id in
+            guard let session = self?.sessions[id] else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            session.present()
+        }
+        notifier.setEnabled(preferences.notifyInBackground, onDenied: nil)
         buildMenus()
         applyPreferences()
         if let report = argument("--smoke-test") {
@@ -103,6 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     func remove(_ session: TerminalWindow) {
         guard sessions.removeValue(forKey: session.id) != nil else { return }
+        notifier.clear(sessionID: session.id)
+        unseenActivityChanged()
         sessionDidFinish()
         refreshResourceMonitoring()
         scheduleLastSessionQuit()
@@ -199,7 +208,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         preferences = value
         preferences.save(to: defaults)
         applyPreferences()
+        notifier.setEnabled(preferences.notifyInBackground) { [weak self] in
+            guard let self else { return }
+            var value = self.preferences
+            value.notifyInBackground = false
+            self.updatePreferences(value)
+            BackgroundNotifier.showDeniedSheet(on: self.settingsWindow?.window)
+        }
+        unseenActivityChanged()
         settingsWindow?.refresh()
+    }
+    /// The Dock badge counts tabs with an unseen finished command or bell.
+    func unseenActivityChanged() {
+        notifier.refreshBadge(count: sessions.values.filter(\.hasUnseenActivity).count)
     }
     private func applyPreferences() {
         switch preferences.appearance {
@@ -215,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         refreshActivityMonitoring()
     }
     private func refreshActivityMonitoring() {
-        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity || preferences.showSessionMarks) && !terminationPending
+        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity || preferences.showSessionMarks || preferences.notifyInBackground) && !terminationPending
     }
     func refreshResourceMonitoring() {
         metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })

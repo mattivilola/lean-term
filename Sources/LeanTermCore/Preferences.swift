@@ -24,6 +24,8 @@ public struct Preferences: Equatable, Sendable {
     public var showActivityScanner = true
     public var showTabActivity = true
     public var showSessionMarks = true
+    /// Off by default: turning it on triggers the macOS notification permission prompt.
+    public var notifyInBackground = false
     public var closeTabOnShellExit = false
     public var quitAfterLastSession = false
     public static let scrollbackLines = 10_000
@@ -42,6 +44,7 @@ public struct Preferences: Equatable, Sendable {
         showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
         showTabActivity = defaults.object(forKey: "showTabActivity") == nil ? true : defaults.bool(forKey: "showTabActivity")
         showSessionMarks = defaults.object(forKey: "showSessionMarks") == nil ? true : defaults.bool(forKey: "showSessionMarks")
+        notifyInBackground = defaults.bool(forKey: "notifyInBackground")
         closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
         quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
     }
@@ -51,7 +54,7 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -67,6 +70,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(showActivityScanner, forKey: "showActivityScanner")
         defaults.set(showTabActivity, forKey: "showTabActivity")
         defaults.set(showSessionMarks, forKey: "showSessionMarks")
+        defaults.set(notifyInBackground, forKey: "notifyInBackground")
         defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
         defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
     }

@@ -16,6 +16,7 @@ final class SettingsWindow: NSWindowController {
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
+    private let notifications = NSButton(checkboxWithTitle: "Notify about finished commands and bells", target: nil, action: nil)
     private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
@@ -25,7 +26,7 @@ final class SettingsWindow: NSWindowController {
 
     init(app: AppDelegate) {
         self.app = app
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 625),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 710),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -68,7 +69,7 @@ final class SettingsWindow: NSWindowController {
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
 
-        for button in [option, closeOnExit, quitAfterLast, resources, activityScanner, tabActivity, sessionMarks] { button.target = self; button.action = #selector(changed) }
+        for button in [option, closeOnExit, quitAfterLast, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -78,11 +79,14 @@ final class SettingsWindow: NSWindowController {
             Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
         let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
             Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
+        let notifying = Self.vertical([notifications,
+            Self.note("Posts a notification when a command of 10 s or more finishes, and badges the Dock icon for unseen tabs, while you are elsewhere.")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
-            [NSTextField(labelWithString: "Activity"), activity]
+            [NSTextField(labelWithString: "Activity"), activity],
+            [NSTextField(labelWithString: "Notifications"), notifying]
         ])
         let updatesPage: NSView
         if app.updates.available {
@@ -107,7 +111,7 @@ final class SettingsWindow: NSWindowController {
                 page.trailingAnchor.constraint(lessThanOrEqualTo: pageContainer.trailingAnchor)
             ])
         }
-        pageContainer.heightAnchor.constraint(equalToConstant: 385).isActive = true
+        pageContainer.heightAnchor.constraint(equalToConstant: 470).isActive = true
         sections.selectedSegment = 0; sections.target = self; sections.action = #selector(sectionChanged)
         let reset = NSButton(title: "Restore Defaults", target: self, action: #selector(resetDefaults))
         reset.bezelStyle = .inline
@@ -167,6 +171,7 @@ final class SettingsWindow: NSWindowController {
         activityScanner.state = value.showActivityScanner ? .on : .off
         tabActivity.state = value.showTabActivity ? .on : .off
         sessionMarks.state = value.showSessionMarks ? .on : .off
+        notifications.state = value.notifyInBackground ? .on : .off
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -192,6 +197,7 @@ final class SettingsWindow: NSWindowController {
         value.showActivityScanner = activityScanner.state == .on
         value.showTabActivity = tabActivity.state == .on
         value.showSessionMarks = sessionMarks.state == .on
+        value.notifyInBackground = notifications.state == .on
         app.updatePreferences(value)
     }
     @objc private func updateSettingsChanged() {

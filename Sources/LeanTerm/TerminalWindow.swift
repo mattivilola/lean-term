@@ -33,8 +33,9 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private let tabMark = TabActivityView()
     private let activityCounter = SessionActivityCounter()
     private var activityModel = SessionActivityModel()
-    private var finishedUnseen = false
-    private var bellUnseen = false
+    private var finishedUnseen = false { didSet { if finishedUnseen != oldValue { app?.unseenActivityChanged() } } }
+    private var bellUnseen = false { didSet { if bellUnseen != oldValue { app?.unseenActivityChanged() } } }
+    var hasUnseenActivity: Bool { finishedUnseen || bellUnseen }
     private var foregroundGroup: pid_t = 0
     private var foregroundLeaderPendingExec = false
     private var session = ForegroundSession.local
@@ -171,6 +172,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         savePlacement()
         finishedUnseen = false
         bellUnseen = false
+        app?.notifier.clear(sessionID: id)
         visibilityChanged()
     }
     func windowDidChangeOcclusionState(_ notification: Notification) { visibilityChanged() }
@@ -219,9 +221,9 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             outputCount: activityCounter.outputCount, time: time,
             remoteSession: session.isRemote)
         activityCounter.disarm()
-        if activityModel.record(sample) == .finishedLongCommand, preferences.showTabActivity,
-           !isBeingViewed {
-            finishedUnseen = true
+        if case .finishedLongCommand(let duration)? = activityModel.record(sample), !isBeingViewed {
+            if preferences.showTabActivity { finishedUnseen = true }
+            app?.notifier.postFinished(sessionID: id, title: window?.title ?? "Lean Term", duration: duration)
         }
         if activityModel.indicator != .idle { finishedUnseen = false }
         renderActivity()

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ActivityIndicator: Equatable, Sendable { case idle, sweeping, holding }
-public enum SessionActivityEvent: Equatable, Sendable { case finishedLongCommand }
+public enum SessionActivityEvent: Equatable, Sendable { case finishedLongCommand(duration: TimeInterval) }
 
 public struct SessionActivitySample: Equatable, Sendable {
     public let foregroundJobRunning: Bool
@@ -56,7 +56,7 @@ public struct SessionActivityModel: Equatable, Sendable {
                 usedAlternate = usedAlternate || sample.alternateScreen
             }
         } else if running, sample.time - jobStart >= Self.longCommand, !usedAlternate {
-            event = .finishedLongCommand
+            event = .finishedLongCommand(duration: sample.time - jobStart)
         }
         running = sample.foregroundJobRunning
 
