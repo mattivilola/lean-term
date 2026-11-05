@@ -35,7 +35,6 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private var activityModel = SessionActivityModel()
     private var finishedUnseen = false
     weak var activityMonitor: SessionActivityMonitor?
-    var activityIndicator: ActivityIndicator { activityModel.indicator }
     private let restart = NSButton(title: "New Session", target: nil, action: nil)
     private var fallback: DispatchWorkItem?
     private(set) var state: State = .starting
@@ -226,7 +225,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             tabMark.setMark(finishedUnseen ? .done : .hidden)
         }
     }
-    func windowDidResignKey(_ notification: Notification) { savePlacement() }
+    func windowDidResignKey(_ notification: Notification) { savePlacement(); visibilityChanged() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
     func windowWillEnterFullScreen(_ notification: Notification) { savePlacement(); fullscreenTransition = true }
     func windowDidExitFullScreen(_ notification: Notification) { fullscreenTransition = false; savePlacement() }
@@ -258,8 +257,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
-        scanner.applyAccent(theme.accent)
-        tabMark.applyAccent(theme.accent)
+        scanner.applyAccent(theme.phosphor)
+        tabMark.applyAccent(theme.phosphor)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {

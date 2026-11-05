@@ -57,7 +57,7 @@ final class ActivityScannerView: NSView {
     }
 
     func setIndicator(_ indicator: ActivityIndicator, visible: Bool) {
-        guard indicator != self.indicator || visible != self.visible else { return }
+        guard indicator != self.indicator || visible != self.visible || needsSweepRestore(indicator, visible) else { return }
         self.indicator = indicator
         self.visible = visible
         render()
@@ -79,6 +79,13 @@ final class ActivityScannerView: NSView {
 
     /// Reduce Motion or Low Power Mode changed: re-evaluate even though the indicator did not.
     func motionOptionsChanged() { render() }
+
+    private var isSweeping: Bool { blob.animation(forKey: Self.sweepKey) != nil }
+
+    /// Self-heals a sweep that Core Animation dropped while our visibility flag never changed.
+    private func needsSweepRestore(_ indicator: ActivityIndicator, _ visible: Bool) -> Bool {
+        indicator == .sweeping && visible && motionAllowed && !isSweeping
+    }
 
     private var motionAllowed: Bool {
         !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && !ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -116,7 +123,7 @@ final class ActivityScannerView: NSView {
         case .holding:
             fade(root, to: 1)
             removeSweep()
-            setStatic(trackOpacity: 0.35, blobVisible: false)
+            setStatic(trackOpacity: 0.3, blobVisible: false)
         }
         setAccessibilityElement(indicator == .sweeping)
         setAccessibilityRole(indicator == .sweeping ? .progressIndicator : nil)

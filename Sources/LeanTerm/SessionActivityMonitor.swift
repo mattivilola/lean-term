@@ -17,7 +17,6 @@ final class SessionActivityMonitor {
             }
         }
     }
-    var isPolling: Bool { timer != nil }
 
     private var timer: Timer?
     // Observers live for the app's lifetime (the monitor is owned by AppDelegate), so they are never removed.

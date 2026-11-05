@@ -111,3 +111,5 @@ capped at 30 fps and rendered by the render server, so there is no per-frame mai
 work. It is removed for hidden windows, and replaced by a static line under Reduce Motion
 or Low Power Mode. The tab accessory shows a filled dot while busy and a ring when a long
 command finished in a window you were not looking at, cleared when that window becomes key.
+Both use the brand phosphor colour from the icon, whatever the palette. Each sample re-adds a
+sweep that Core Animation dropped, so a tab that is selected again resumes animating.

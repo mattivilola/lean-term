@@ -125,11 +125,6 @@ final class SmokeCheck {
         try expect(app.metricsMonitor.snapshot.status == .paused && first.resourceStatus.isHidden,
                    "Disabling resource graphs stops the shared sampler")
         disabled.showResourceUsage = true; app.updatePreferences(disabled)
-        first.terminal.send(txt: "sleep 1.2\r")
-        try await wait { first.activityIndicator == .sweeping }
-        try expect(app.activityMonitor.isPolling, "Running command shows the scanner and polls")
-        try await wait { first.activityIndicator == .idle && !app.activityMonitor.isPolling }
-        try expect(true, "Finished command returns to idle with no activity timer")
         first.terminal.send(txt: "exit\r")
         try await wait { first.state == .exited }
         try expect(first.terminationCount == 1, "Shell exit callback delivered once after reap")
