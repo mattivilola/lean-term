@@ -39,6 +39,19 @@ tab/session contents are not restored. `--reset-window` clears only saved window
 geometry; `--reset-settings` also clears the app's visual preferences. Smoke mode
 uses a separate preferences domain for both geometry and visual settings.
 
+## Input conveniences
+
+Dropping files or text onto a terminal inserts shell-escaped paths (`ShellEscape`,
+as Terminal.app does) or the text through SwiftTerm's `pasteText`, so bracketed
+paste is honoured and no Enter is ever sent. Secure Keyboard Entry (App menu,
+off by default) holds a Carbon secure-event-input request only while the app is
+active, tracked by one Bool so enable/disable stay balanced and release on quit.
+
+`LeanTerminalView` overrides SwiftTerm's `paste(_:)`, the single entry point for
+⌘V and Edit › Paste. A multi-line clipboard sent to a program that has not enabled
+bracketed paste first shows a sheet with a short preview; "Don't ask again" and
+Settings › Behavior turn `confirmMultilinePaste` off. Other pastes are untouched.
+
 ## Shells and shutdown
 
 The account's login shell starts at home, or an explicitly supplied directory,

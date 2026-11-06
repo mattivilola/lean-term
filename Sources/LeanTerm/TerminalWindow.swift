@@ -88,6 +88,12 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         terminal.processDelegate = self
         installOutputHandler()
         terminal.onBell = { [weak self] in self?.bellRang() }
+        terminal.confirmsMultilinePaste = preferences.confirmMultilinePaste
+        terminal.onDisableMultilinePasteConfirmation = { [weak self] in
+            guard var value = self?.app?.preferences else { return }
+            value.confirmMultilinePaste = false
+            self?.app?.updatePreferences(value)
+        }
         terminal.bellStyle = .none
         // This remains the measured CoreGraphics/CoreText implementation.
         do { try terminal.setUseMetal(false) }
@@ -323,6 +329,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
+        terminal.confirmsMultilinePaste = value.confirmMultilinePaste
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
         applyTheme()
     }

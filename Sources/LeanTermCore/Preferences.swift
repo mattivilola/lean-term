@@ -46,6 +46,8 @@ public struct Preferences: Equatable, Sendable {
     public var closeTabOnShellExit = false
     public var quitAfterLastSession = false
     public var restoreSessions = false
+    public var secureKeyboardEntry = false
+    public var confirmMultilinePaste = true
     public static let scrollbackLines = 10_000
 
     public init() {}
@@ -67,6 +69,8 @@ public struct Preferences: Equatable, Sendable {
         closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
         quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
         restoreSessions = defaults.bool(forKey: "restoreSessions")
+        secureKeyboardEntry = defaults.bool(forKey: "secureKeyboardEntry")
+        confirmMultilinePaste = defaults.object(forKey: "confirmMultilinePaste") == nil ? true : defaults.bool(forKey: "confirmMultilinePaste")
     }
 
     /// The colour of the first rule whose pattern matches the host, case-insensitively. Empty patterns are ignored.
@@ -84,7 +88,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -105,5 +109,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
         defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
         defaults.set(restoreSessions, forKey: "restoreSessions")
+        defaults.set(secureKeyboardEntry, forKey: "secureKeyboardEntry")
+        defaults.set(confirmMultilinePaste, forKey: "confirmMultilinePaste")
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import LeanTermCore
 
 @MainActor
@@ -14,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var shortcutsWindow: ShortcutsWindow?
     private var aboutWindow: AboutWindow?
     private var terminationPending = false
+    /// True while this app holds a Secure Event Input request; keeps enable/disable strictly balanced.
+    private var secureInputEngaged = false
     private var quitApproved = false
     private var lastActiveSessionID: UUID?
     private var smokeCheck: SmokeCheck?
@@ -67,11 +70,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         notifier.setEnabled(preferences.notifyInBackground, onDenied: nil)
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             NotificationCenter.default.addObserver(forName: name, object: NSApp, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refreshResourceMonitoring() }
+                MainActor.assumeIsolated {
+                    self?.refreshResourceMonitoring()
+                    self?.refreshSecureInput()
+                }
             }
         }
         buildMenus()
         applyPreferences()
+        refreshSecureInput()
         if let report = argument("--smoke-test") {
             smokeCheck = SmokeCheck(app: self, report: report)
             smokeCheck?.start()
@@ -277,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     func applicationWillTerminate(_ notification: Notification) {
         smokeCheck?.willTerminate()
+        setSecureInput(false)
         metricsMonitor.setRunning(false)
         activityMonitor.enabled = false
         if let isolatedDefaultsDomain { defaults.removePersistentDomain(forName: isolatedDefaultsDomain) }
@@ -366,8 +374,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if NSApp.appearance?.name != .darkAqua { NSApp.appearance = NSAppearance(named: .darkAqua) }
         }
         for session in sessions.values { session.apply(preferences) }
+        refreshSecureInput()
         refreshResourceMonitoring()
         refreshActivityMonitoring()
+    }
+    private func refreshSecureInput() {
+        setSecureInput(preferences.secureKeyboardEntry && NSApp.isActive)
+    }
+    private func setSecureInput(_ enabled: Bool) {
+        guard enabled != secureInputEngaged else { return }
+        secureInputEngaged = enabled
+        if enabled { EnableSecureEventInput() } else { DisableSecureEventInput() }
+    }
+    @objc private func toggleSecureKeyboardEntry(_ sender: Any?) {
+        var value = preferences
+        value.secureKeyboardEntry.toggle()
+        updatePreferences(value)
     }
     private func refreshActivityMonitoring() {
         // Directory labels also follow PTY activity, without adding an idle timer.
@@ -396,6 +418,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleSecureKeyboardEntry) {
+            menuItem.state = preferences.secureKeyboardEntry ? .on : .off
+            return !terminationPending
+        }
         if [#selector(nextTab), #selector(previousTab), #selector(selectTab), #selector(renameTab)].contains(menuItem.action) {
             return activeSession != nil && !terminationPending
         }
@@ -427,6 +453,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         application.addItem(.separator())
         add(application, "Settings…", #selector(showSettings), target: self, shortcut: .settings)
+        application.addItem(.separator())
+        add(application, "Secure Keyboard Entry", #selector(toggleSecureKeyboardEntry), target: self)
         application.addItem(.separator())
         add(application, "Hide Lean Term", #selector(NSApplication.hide(_:)), "h")
         add(application, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", modifiers: [.command, .option])

@@ -38,7 +38,7 @@ import Testing
     var value = Preferences()
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }
@@ -151,4 +151,12 @@ import Testing
     #expect(Preferences.hostColor(for: "PROD-db1", in: rules) == .red)
     #expect(Preferences.hostColor(for: "staging", in: rules) == .blue)
     #expect(Preferences.hostColor(for: "staging", in: Array(rules.prefix(2))) == nil)
+}
+
+@Test func shellEscapeBackslashesMetacharactersLikeTerminalApp() {
+    #expect(ShellEscape.path("/tmp/My Files/a&b (1).txt") == "/tmp/My\\ Files/a\\&b\\ \\(1\\).txt")
+    #expect(ShellEscape.path("it's \"x\" $HOME `id` ~ #!") == "it\\'s\\ \\\"x\\\"\\ \\$HOME\\ \\`id\\`\\ \\~\\ \\#\\!")
+    #expect(ShellEscape.path("/plain/path-1.2_x") == "/plain/path-1.2_x")
+    #expect(ShellEscape.path("a\nrm -rf ~") == "$'a\\nrm -rf ~'")
+    #expect(ShellEscape.path("a\tb'c\\d\u{1B}") == "$'a\\tb\\'c\\\\d\\x1B'")
 }

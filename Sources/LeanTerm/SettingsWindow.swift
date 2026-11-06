@@ -13,6 +13,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
+    private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
     private let restore = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
@@ -77,7 +78,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
 
-        for button in [option, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [option, confirmPaste, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -91,6 +92,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             Self.note("Notifies when a command of 10 s or more finishes. Badges missed completions and bells while you are elsewhere.")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
+            [NSTextField(labelWithString: "Pasting"), confirmPaste],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
             [NSTextField(labelWithString: "Activity"), activity],
@@ -286,6 +288,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         size.doubleValue = value.fontSize; sizeLabel.stringValue = "\(Int(value.fontSize)) pt"
         cursor.selectItem(withTitle: value.cursor.title)
         option.state = value.optionAsMeta ? .on : .off
+        confirmPaste.state = value.confirmMultilinePaste ? .on : .off
         closeOnExit.state = value.closeTabOnShellExit ? .on : .off
         quitAfterLast.state = value.quitAfterLastSession ? .on : .off
         restore.state = value.restoreSessions ? .on : .off
@@ -314,6 +317,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.fontSize = size.doubleValue.rounded()
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
         value.optionAsMeta = option.state == .on
+        value.confirmMultilinePaste = confirmPaste.state == .on
         value.closeTabOnShellExit = closeOnExit.state == .on
         value.quitAfterLastSession = quitAfterLast.state == .on
         value.restoreSessions = restore.state == .on
