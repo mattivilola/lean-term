@@ -36,6 +36,7 @@ import Testing
     #expect(Preferences(defaults: defaults).fontSize == 32)
     #expect(Preferences.validFontSize(.nan) == 13)
     var value = Preferences()
+    value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true
     value.save(to: defaults)
@@ -93,6 +94,10 @@ import Testing
     var value = ShortcutConfiguration()
     #expect(value.binding(for: .previousTab)?.display == "⌘←")
     #expect(value.binding(for: .nextTab)?.display == "⌘→")
+    #expect(value.binding(for: .tab1)?.display == "⌘1")
+    #expect(value.binding(for: .lastTab)?.display == "⌘9")
+    #expect(value.binding(for: .renameTab)?.display == "⇧⌘R")
+    #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("1"), for: .newWindow) }
     try value.set(.init("n", [.command, .option]), for: .newWindow)
     value.save(to: defaults)
     #expect(ShortcutConfiguration(defaults: defaults) == value)
@@ -105,6 +110,11 @@ import Testing
     #expect(value == ShortcutConfiguration())
     defaults.set(["newWindow": ["key": "q", "modifiers": 1]], forKey: "shortcuts")
     #expect(ShortcutConfiguration(defaults: defaults) == ShortcutConfiguration())
+    defaults.set(["newWindow": ["key": "1", "modifiers": 1]], forKey: "shortcuts")
+    let legacy = ShortcutConfiguration(defaults: defaults)
+    #expect(legacy.binding(for: .newWindow) == .init("1"))
+    #expect(legacy.binding(for: .tab1) == nil)
+    #expect(legacy.binding(for: .nextTab)?.display == "⌘→")
     Preferences.reset(in: defaults)
     #expect(defaults.object(forKey: "shortcuts") == nil)
 }

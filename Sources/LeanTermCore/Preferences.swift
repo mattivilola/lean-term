@@ -45,6 +45,7 @@ public struct Preferences: Equatable, Sendable {
     public var hostColorRules: [HostColorRule] = []
     public var closeTabOnShellExit = false
     public var quitAfterLastSession = false
+    public var restoreSessions = false
     public static let scrollbackLines = 10_000
 
     public init() {}
@@ -65,6 +66,7 @@ public struct Preferences: Equatable, Sendable {
         hostColorRules = defaults.data(forKey: "hostColorRules").flatMap { try? JSONDecoder().decode([HostColorRule].self, from: $0) } ?? []
         closeTabOnShellExit = defaults.bool(forKey: "closeTabOnShellExit")
         quitAfterLastSession = defaults.bool(forKey: "quitAfterLastSession")
+        restoreSessions = defaults.bool(forKey: "restoreSessions")
     }
 
     /// The colour of the first rule whose pattern matches the host, case-insensitively. Empty patterns are ignored.
@@ -80,6 +82,8 @@ public struct Preferences: Equatable, Sendable {
     }
 
     public static func reset(in defaults: UserDefaults) {
+        defaults.removeObject(forKey: "restoreSessions")
+        SessionWorkspace.clear(in: defaults)
         for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
@@ -100,5 +104,6 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(try? JSONEncoder().encode(hostColorRules), forKey: "hostColorRules")
         defaults.set(closeTabOnShellExit, forKey: "closeTabOnShellExit")
         defaults.set(quitAfterLastSession, forKey: "quitAfterLastSession")
+        defaults.set(restoreSessions, forKey: "restoreSessions")
     }
 }

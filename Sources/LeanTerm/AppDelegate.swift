@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             WindowPlacement.reset(in: defaults)
         }
         preferences = Preferences(defaults: defaults)
+        if !preferences.restoreSessions { SessionWorkspace.clear(in: defaults) }
         shortcuts = ShortcutConfiguration(defaults: defaults)
         super.init()
     }
@@ -71,13 +72,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 alert.informativeText = "Lean Term will open your home folder instead."
                 alert.runModal()
                 newTerminal()
-            } else { newTerminal(directory: directory) }
+            } else if directory != nil || !restoreWorkspace() { newTerminal(directory: directory) }
         }
         NSApp.activate(ignoringOtherApps: true)
     }
 
     @discardableResult
-    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, smoke: Bool = false) -> TerminalWindow? {
+    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, smoke: Bool = false, separateWindow: Bool = false) -> TerminalWindow? {
         guard !terminationPending else { return nil }
         let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
@@ -88,15 +89,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if let parent = tabOf?.window, let window = session.window {
             parent.addTabbedWindow(window, ordered: .above)
         }
+        if separateWindow { session.window?.tabbingMode = .disallowed }
         session.present()
-        session.start(smoke: smoke)
+        if separateWindow { session.window?.tabbingMode = .automatic }
+        session.start(smoke: smoke || smokeDefaultsDomain != nil)
         refreshResourceMonitoring()
         return session
     }
-    @objc func newWindow(_ sender: Any?) { newTerminal(directory: activeSession?.currentDirectory) }
+    @objc func newWindow(_ sender: Any?) { newTerminal(directory: activeSession?.directoryForNewSession, separateWindow: true) }
     @objc func newTab(_ sender: Any?) {
         let parent = activeSession
-        newTerminal(directory: parent?.currentDirectory, tabOf: parent)
+        newTerminal(directory: parent?.directoryForNewSession, tabOf: parent)
+    }
+    @objc func selectTab(_ sender: NSMenuItem) {
+        guard let current = activeSession?.window else { return }
+        let windows = current.tabGroup?.windows ?? [current]
+        let index = sender.tag == 9 ? windows.count - 1 : sender.tag - 1
+        guard windows.indices.contains(index) else { return }
+        let next = windows[index]
+        next.tabGroup?.selectedWindow = next
+        next.makeKeyAndOrderFront(nil)
+    }
+    @objc func renameTab(_ sender: Any?) {
+        guard !terminationPending, let session = activeSession, let window = session.window, window.attachedSheet == nil else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename Tab"
+        alert.informativeText = "Leave the name blank to use the folder name."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        field.stringValue = session.customName ?? session.folderName
+        field.placeholderString = session.folderName
+        field.setAccessibilityLabel("Tab name")
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: window) { [weak session] response in
+            if response == .alertFirstButtonReturn { session?.setCustomName(field.stringValue) }
+        }
+        field.selectText(nil)
     }
     @objc func nextTab(_ sender: Any?) { cycleTab(by: 1) }
     @objc func previousTab(_ sender: Any?) { cycleTab(by: -1) }
@@ -140,6 +170,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func recordActiveSession(_ session: TerminalWindow) {
         if session.window?.isKeyWindow == true { lastActiveSessionID = session.id }
     }
+    func workspaceSnapshot() -> SessionWorkspace {
+        let owned = Dictionary(uniqueKeysWithValues: sessions.values.compactMap { session in
+            session.window.map { (ObjectIdentifier($0), session) }
+        })
+        let windows = NSApp.orderedWindows + sessions.values.compactMap(\.window).sorted { $0.windowNumber < $1.windowNumber }
+        var visited = Set<UUID>()
+        var groups: [SessionWindowGroup] = []
+        var activeGroup = 0
+        let activeID = activeSession?.id ?? lastActiveSessionID
+        for window in windows {
+            let members = (window.tabGroup?.windows ?? [window]).compactMap { owned[ObjectIdentifier($0)] }
+                .filter { $0.state != .closing && !visited.contains($0.id) }
+            guard !members.isEmpty else { continue }
+            visited.formUnion(members.map(\.id))
+            let selected = members.firstIndex { $0.window === window.tabGroup?.selectedWindow } ?? 0
+            if members.contains(where: { $0.id == activeID }) { activeGroup = groups.count }
+            groups.append(SessionWindowGroup(tabs: members.map {
+                SessionTab(directory: $0.directoryForNewSession, customName: $0.customName)
+            }, selectedTab: selected))
+        }
+        return SessionWorkspace(groups: groups, activeGroup: activeGroup)
+    }
+    func saveWorkspaceForQuit() {
+        guard preferences.restoreSessions else { SessionWorkspace.clear(in: defaults); return }
+        let snapshot = workspaceSnapshot()
+        if snapshot.groups.isEmpty { SessionWorkspace.clear(in: defaults) }
+        else { snapshot.save(to: defaults) }
+    }
+    @discardableResult
+    func restoreWorkspace(smoke: Bool = false) -> Bool {
+        guard preferences.restoreSessions, let saved = SessionWorkspace.load(from: defaults) else { return false }
+        var selectedWindows: [NSWindow] = []
+        for group in saved.groups {
+            var restored: [TerminalWindow] = []
+            for tab in group.tabs {
+                guard let session = newTerminal(directory: tab.directory, tabOf: restored.last, smoke: smoke,
+                                                separateWindow: restored.isEmpty) else { continue }
+                session.setCustomName(tab.customName)
+                restored.append(session)
+            }
+            if restored.indices.contains(group.selectedTab), let window = restored[group.selectedTab].window {
+                window.tabGroup?.selectedWindow = window
+                selectedWindows.append(window)
+            }
+        }
+        if selectedWindows.indices.contains(saved.activeGroup) {
+            selectedWindows[saved.activeGroup].makeKeyAndOrderFront(nil)
+        }
+        return !selectedWindows.isEmpty
+    }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { newTerminal() }
         return true
@@ -155,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if terminationPending { return .terminateLater }
         let live = sessions.values.filter(\.live)
         (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })?.savePlacement()
-        guard !live.isEmpty else { return .terminateNow }
+        guard !live.isEmpty else { saveWorkspaceForQuit(); return .terminateNow }
         terminationPending = true
         refreshActivityMonitoring()
         refreshResourceMonitoring()
@@ -179,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         quitApproved = true
+        saveWorkspaceForQuit()
         for session in Array(sessions.values) where session.live { session.beginShutdown() }
         sessionDidFinish()
     }
@@ -206,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         value.fontSize = Preferences.validFontSize(value.fontSize)
         guard value != preferences else { return }
         preferences = value
+        if !value.restoreSessions { SessionWorkspace.clear(in: defaults) }
         preferences.save(to: defaults)
         applyPreferences()
         notifier.setEnabled(preferences.notifyInBackground) { [weak self] in
@@ -236,7 +318,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         refreshActivityMonitoring()
     }
     private func refreshActivityMonitoring() {
-        activityMonitor.enabled = (preferences.showActivityScanner || preferences.showTabActivity || preferences.showSessionMarks || preferences.notifyInBackground) && !terminationPending
+        // Directory labels also follow PTY activity, without adding an idle timer.
+        activityMonitor.enabled = !terminationPending
     }
     func refreshResourceMonitoring() {
         metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })
@@ -260,7 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if [#selector(nextTab), #selector(previousTab)].contains(menuItem.action) {
+        if [#selector(nextTab), #selector(previousTab), #selector(selectTab), #selector(renameTab)].contains(menuItem.action) {
             return activeSession != nil && !terminationPending
         }
         if [#selector(clearScreenAndScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
@@ -326,6 +409,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         windows.addItem(.separator())
         add(windows, "Next Tab", #selector(nextTab), target: self, shortcut: .nextTab)
         add(windows, "Previous Tab", #selector(previousTab), target: self, shortcut: .previousTab)
+        add(windows, "Rename Tab…", #selector(renameTab), target: self, shortcut: .renameTab)
+        windows.addItem(.separator())
+        let numbered: [ShortcutAction] = [.tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
+        for (index, action) in numbered.enumerated() {
+            add(windows, action.title, #selector(selectTab(_:)), target: self, tag: index + 1, shortcut: action)
+        }
+        windows.addItem(.separator())
         for (action, selector) in [(ShortcutAction.previousTab, #selector(previousTab)), (.nextTab, #selector(nextTab))] {
             for binding in action.aliases {
                 let item = NSMenuItem(title: action.title, action: selector, keyEquivalent: binding.key)

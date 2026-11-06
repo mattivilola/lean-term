@@ -13,6 +13,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
+    private let restore = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
@@ -32,7 +33,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
 
     init(app: AppDelegate) {
         self.app = app
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 710),
+        let height = min(780, (NSScreen.main?.visibleFrame.height ?? 860) - 80)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: height),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -75,12 +77,12 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
 
-        for button in [option, closeOnExit, quitAfterLast, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [option, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
-        let sessions = Self.vertical([closeOnExit, quitAfterLast,
-            Self.note("Turn off automatic closing to review final output. Applies to future shell exits.")], spacing: 7)
+        let sessions = Self.vertical([closeOnExit, quitAfterLast, restore,
+            Self.note("Reopens fresh shells in saved folders, including tab names. Running commands are not restored.")], spacing: 7)
         let monitoring = Self.vertical([resources,
             Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
         let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
@@ -107,7 +109,13 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
 
         let hostsPage = makeHostsPage()
         pages = [appearancePage, behaviorPage, updatesPage, hostsPage]
-        let pageContainer = NSView()
+        let pageContainer = SettingsDocument()
+        pageContainer.translatesAutoresizingMaskIntoConstraints = false
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.documentView = pageContainer
         for (index, page) in pages.enumerated() {
             page.translatesAutoresizingMaskIntoConstraints = false
             page.isHidden = index != 0
@@ -118,21 +126,25 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
                 page.trailingAnchor.constraint(lessThanOrEqualTo: pageContainer.trailingAnchor)
             ])
         }
-        pageContainer.heightAnchor.constraint(equalToConstant: 470).isActive = true
+        NSLayoutConstraint.activate([
+            pageContainer.heightAnchor.constraint(equalToConstant: 540),
+            pageContainer.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            scroll.heightAnchor.constraint(equalToConstant: height - 222)
+        ])
         sections.selectedSegment = 0; sections.target = self; sections.action = #selector(sectionChanged)
         let reset = NSButton(title: "Restore Defaults", target: self, action: #selector(resetDefaults))
         reset.bezelStyle = .inline
         let note = NSTextField(labelWithString: "Changes save automatically.")
         note.font = .systemFont(ofSize: 11); note.textColor = .secondaryLabelColor
         let bottom = NSStackView(views: [note, NSView(), reset]); bottom.spacing = 8
-        let stack = Self.vertical([heading, sections, pageContainer, bottom], spacing: 22)
+        let stack = Self.vertical([heading, sections, scroll, bottom], spacing: 22)
         stack.translatesAutoresizingMaskIntoConstraints = false
         window.contentView?.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30),
             stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30),
             stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 26),
-            pageContainer.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
             bottom.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
         window.center()
@@ -276,6 +288,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         option.state = value.optionAsMeta ? .on : .off
         closeOnExit.state = value.closeTabOnShellExit ? .on : .off
         quitAfterLast.state = value.quitAfterLastSession ? .on : .off
+        restore.state = value.restoreSessions ? .on : .off
         resources.state = value.showResourceUsage ? .on : .off
         activityScanner.state = value.showActivityScanner ? .on : .off
         tabActivity.state = value.showTabActivity ? .on : .off
@@ -303,6 +316,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.optionAsMeta = option.state == .on
         value.closeTabOnShellExit = closeOnExit.state == .on
         value.quitAfterLastSession = quitAfterLast.state == .on
+        value.restoreSessions = restore.state == .on
         value.showResourceUsage = resources.state == .on
         value.showActivityScanner = activityScanner.state == .on
         value.showTabActivity = tabActivity.state == .on
@@ -319,4 +333,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         app?.updatePreferences(Preferences())
         refresh()
     }
+}
+
+private final class SettingsDocument: NSView {
+    override var isFlipped: Bool { true }
 }

@@ -1,8 +1,21 @@
 import Darwin
+import Foundation
 import LeanTermCore
 
 /// Reads the foreground process-group leader straight from the kernel; never shells out.
 enum ForegroundProcessReader {
+    /// Read the local shell's cwd, even when it does not emit OSC 7 directory reports.
+    static func workingDirectory(of pid: pid_t) -> String? {
+        guard pid > 0 else { return nil }
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        guard path.hasPrefix("/") else { return nil }
+        return ShellLaunch.localDirectory(from: URL(fileURLWithPath: path).absoluteString)
+    }
     static func read(groupLeader pid: pid_t) -> ForegroundProcess? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         var info = kinfo_proc()

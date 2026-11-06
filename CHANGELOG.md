@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — Tabs that remember
+
+- Short folder names in tabs, full paths on hover, and Rename Tab in the toolbar and Window menu (⇧⌘R). A blank name returns to automatic labels.
+- ⌘1–8 selects tabs directly; ⌘9 selects the last tab. All bindings remain configurable.
+- New tabs inherit the local shell’s actual working directory, including shells without directory-reporting hooks.
+- Optional Settings → Behavior → Reopen windows and tabs on launch preserves tab groups, order, selected tabs, folders and custom names across normal quit. Reopens fresh shells; commands and SSH connections are not replayed.
+- Settings scroll on smaller displays. Missing saved folders fall back to home; reset settings clears the saved workspace.
+
 ## 0.3.0 — Session signals
 
 - Remote tabs: ssh, autossh, mosh and Eternal Terminal sessions show an amber network mark and the remote host in the subtitle, without busy marks or sweeps while you type.

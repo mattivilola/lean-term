@@ -154,3 +154,22 @@ smoke reports now include bounded visible terminal output for diagnosis.
 New session classification and host-rule behavior have core-test coverage.
 Live remote connections and notification permission/delivery were not exercised
 by the native smoke run. Published performance figures remain the 0.1.2 results.
+
+## 0.4.0 — Tabs and workspace checks
+
+All 30 core tests passed, including three focused workspace tests for ordered
+round-trip, bounded/corrupt records and missing-folder recovery. Existing tests
+also cover the restoration preference and preservation of personal shortcuts
+that overlap the newly introduced numbered-tab defaults. Release-helper and
+benchmark-calculation checks passed.
+
+One native smoke run passed 35 checks using isolated preferences and clean
+shells. New checks exercise a hook-free shell changing directory, short labels,
+custom names and blank-name reset, New Tab inheriting the current directory,
+native Cmd-1/last-tab actions, and reopening two real window groups with four
+fresh shells while preserving folders, names, tab order and selection. All
+owned sessions cleaned up. This checks the workspace save/restore functions
+inside one app run; a manual installed-app quit/relaunch was not part of it.
+
+The Release build passed. No latency benchmark or full exit-policy matrix was
+repeated; published performance evidence remains specifically for 0.1.2.

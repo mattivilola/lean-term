@@ -45,6 +45,14 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private var fallback: DispatchWorkItem?
     private(set) var state: State = .starting
     private(set) var currentDirectory: String
+    private(set) var customName: String?
+    var folderName: String {
+        currentDirectory == NSHomeDirectory() ? "~" : (currentDirectory == "/" ? "/" : URL(fileURLWithPath: currentDirectory).lastPathComponent)
+    }
+    var directoryForNewSession: String {
+        refreshDirectory()
+        return ShellLaunch.localDirectory(from: URL(fileURLWithPath: currentDirectory).absoluteString) ?? NSHomeDirectory()
+    }
     private var preferences: Preferences
     private let launch: ShellLaunch
     private var fullscreenTransition = false
@@ -141,6 +149,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             terminal.startProcess(executable: launch.executable, environment: launch.environment, execName: launch.execName, currentDirectory: currentDirectory)
         }
         if state == .starting { state = terminal.process.running ? .running : .failed }
+        refreshDirectory()
     }
 
     required init?(coder: NSCoder) { fatalError("Programmatic windows only") }
@@ -168,6 +177,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         app?.savePlacement(of: self)
     }
     func windowDidBecomeKey(_ notification: Notification) {
+        refreshDirectory()
         app?.recordActiveSession(self)
         savePlacement()
         finishedUnseen = false
@@ -215,6 +225,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             if foreground { group = current }
         }
         updateSession(group: group)
+        if !foreground { refreshDirectory() }
         let sample = SessionActivitySample(
             foregroundJobRunning: foreground,
             alternateScreen: terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true,
@@ -258,20 +269,19 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     }
 
     private func updateSubtitle() {
+        updateTabLabel()
         let local = Self.displayPath(currentDirectory)
-        guard preferences.showSessionMarks else { window?.subtitle = local; return }
-        switch session {
-        case .local:
-            window?.subtitle = local
-        case .root:
-            window?.subtitle = "root · " + local
-        case .remote(let tool, let host):
-            if let remoteLocation {
-                window?.subtitle = "\(remoteLocation.host):\(remoteLocation.path)"
-            } else {
-                window?.subtitle = host.map { "\(tool) \($0)" } ?? tool
+        let subtitle: String
+        if !preferences.showSessionMarks { subtitle = local }
+        else {
+            switch session {
+            case .local: subtitle = local
+            case .root: subtitle = "root · " + local
+            case .remote(let tool, let host):
+                subtitle = remoteLocation.map { "\($0.host):\($0.path)" } ?? host.map { "\(tool) \($0)" } ?? tool
             }
         }
+        if window?.subtitle != subtitle { window?.subtitle = subtitle }
     }
 
     func resetActivity() {
@@ -382,7 +392,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     }
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         let clean = String(title.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(120))
-        if !clean.isEmpty { window?.title = clean }
+        if !clean.isEmpty { window?.title = customName ?? clean }
+        updateTabLabel()
     }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
         if let path = ShellLaunch.localDirectory(from: directory) {
@@ -394,6 +405,32 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             updateSubtitle()
             renderActivity()
         }
+    }
+
+    func refreshDirectory() {
+        if didStart, let process = terminal.process, process.running,
+           let path = ForegroundProcessReader.workingDirectory(of: process.shellPid), path != currentDirectory {
+            currentDirectory = path
+            window?.representedURL = URL(fileURLWithPath: path)
+        }
+        updateSubtitle()
+    }
+
+    func setCustomName(_ name: String?) {
+        customName = SessionTab.cleanedName(name)
+        window?.title = customName ?? folderName
+        updateTabLabel()
+    }
+
+    private func updateTabLabel() {
+        let automatic: String
+        if case .remote(_, let host) = session {
+            automatic = remoteLocation?.host ?? host ?? folderName
+        } else { automatic = folderName }
+        let label = customName ?? automatic
+        if window?.tab.title != label { window?.tab.title = label }
+        let tooltip = remoteLocation.map { "\($0.host):\($0.path)" } ?? currentDirectory
+        if window?.tab.toolTip != tooltip { window?.tab.toolTip = tooltip }
     }
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         terminationCount += 1
@@ -425,17 +462,18 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     }
 
     @objc private func restartSession() {
-        app?.newTerminal(directory: currentDirectory)
+        app?.newTerminal(directory: directoryForNewSession)
         window?.close()
     }
     @objc private func newTab() { app?.newTab(nil) }
     @objc private func settings() { app?.showSettings(nil) }
+    @objc private func renameTab() { app?.renameTab(nil) }
     @objc private func find() {
         let item = NSMenuItem(); item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
         terminal.performFindPanelAction(item)
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.init("new"), .flexibleSpace, .init("find"), .init("settings")]
+        [.init("new"), .flexibleSpace, .init("rename"), .init("find"), .init("settings")]
     }
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { toolbarAllowedItemIdentifiers(toolbar) }
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
@@ -443,6 +481,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         let config: (String, String, Selector)
         switch identifier.rawValue {
         case "new": config = ("New Tab", "plus", #selector(newTab))
+        case "rename": config = ("Rename Tab", "pencil", #selector(renameTab))
         case "find": config = ("Find", "magnifyingglass", #selector(find))
         case "settings": config = ("Settings", "slider.horizontal.3", #selector(settings))
         default: return nil

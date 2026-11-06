@@ -45,6 +45,7 @@ public struct ShortcutBinding: Equatable, Sendable {
 public enum ShortcutAction: String, CaseIterable, Sendable {
     case newWindow, newTab, close, previousTab, nextTab, find, findNext, findPrevious
     case clearScrollback, largerText, smallerText, defaultText, settings, shortcuts, about, updates, quit
+    case renameTab, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, lastTab
 
     public var title: String {
         switch self {
@@ -65,6 +66,16 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .about: "About Lean Term"
         case .updates: "Check for Updates"
         case .quit: "Quit Lean Term"
+        case .renameTab: "Rename Tab"
+        case .tab1: "Select Tab 1"
+        case .tab2: "Select Tab 2"
+        case .tab3: "Select Tab 3"
+        case .tab4: "Select Tab 4"
+        case .tab5: "Select Tab 5"
+        case .tab6: "Select Tab 6"
+        case .tab7: "Select Tab 7"
+        case .tab8: "Select Tab 8"
+        case .lastTab: "Select Last Tab"
         }
     }
     public var defaultBinding: ShortcutBinding? {
@@ -84,6 +95,16 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .settings: .init(",")
         case .shortcuts: .init("?")
         case .quit: .init("q")
+        case .renameTab: .init("r", [.command, .shift])
+        case .tab1: .init("1")
+        case .tab2: .init("2")
+        case .tab3: .init("3")
+        case .tab4: .init("4")
+        case .tab5: .init("5")
+        case .tab6: .init("6")
+        case .tab7: .init("7")
+        case .tab8: .init("8")
+        case .lastTab: .init("9")
         case .about, .updates: nil
         }
     }
@@ -112,7 +133,14 @@ public struct ShortcutConfiguration: Equatable, Sendable {
             if conflict(for: binding, excluding: action) != nil { overrides = [:]; break }
         }
     }
-    public func binding(for action: ShortcutAction) -> ShortcutBinding? { overrides[action] ?? action.defaultBinding }
+    public func binding(for action: ShortcutAction) -> ShortcutBinding? {
+        if let override = overrides[action] { return override }
+        let binding = action.defaultBinding
+        // Existing personal bindings take precedence over newly introduced tab defaults.
+        let newTabActions: Set<ShortcutAction> = [.renameTab, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
+        if newTabActions.contains(action), let binding, overrides.values.contains(binding) { return nil }
+        return binding
+    }
     public mutating func set(_ binding: ShortcutBinding, for action: ShortcutAction) throws {
         guard binding.isValid else { throw Failure(message: "Include ⌘ and one other key.") }
         guard !binding.isSystemReserved else { throw Failure(message: "That combination is reserved by macOS.") }

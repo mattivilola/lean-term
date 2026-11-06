@@ -1,5 +1,26 @@
 # Architecture
 
+## Tab names, directories and workspace reopening (0.4.0)
+
+Tab labels use the local folder basename (or remote host) independently of
+shell-supplied window titles. Custom names are trimmed and bounded. The native
+tab tooltip retains the full path. Numbered shortcuts and Rename Tab use the
+same configurable menu-binding system as other commands.
+
+The local shell PID's `PROC_PIDVNODEPATHINFO` cwd is refreshed after PTY activity,
+on focus and before creating/saving a tab. No shell hook or new idle timer is
+needed. Remote OSC directory reports remain display metadata, never a local
+directory for a new shell.
+
+Optional workspace reopening stores one versioned, bounded UserDefaults value:
+ordered window groups, ordered local folders/custom names, selected tabs and
+the active group. Confirmed quit saves it before shell shutdown removes windows;
+Cancel leaves it alone. Empty workspaces clear the value, so manually closed
+tabs are not resurrected. Disabling restoration or resetting settings clears it.
+Launch restores fresh shells with explicit native tab grouping; missing folders
+fall back to home. Existing last-window geometry is reused; commands, output,
+remote connections and per-group geometry are not serialized.
+
 Lean Term uses Swift and AppKit around SwiftTerm's existing local-process terminal
 view. CoreGraphics/CoreText is explicitly selected. The app adds no renderer,
 parser, PTY reader or input encoding layer. Appearance changes remain event-driven.

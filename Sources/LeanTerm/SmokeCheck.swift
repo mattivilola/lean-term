@@ -182,10 +182,51 @@ final class SmokeCheck {
         a.savePlacement() // A late callback from a background window must not win.
         try expect(current?.frame == c.window?.frame && WindowPlacement(defaults: app.defaults) == current,
                    "Only the last active window updates saved placement")
-        a.beginShutdown(); b.beginShutdown(); c.beginShutdown()
-        try await wait { a.state == .exited && b.state == .exited && c.state == .exited }
-        try expect(a.terminationCount == 1 && b.terminationCount == 1 && c.terminationCount == 1 && app.sessions.isEmpty,
+        a.terminal.send(txt: "cd /private/tmp; printf 'LT_DIRECTORY_%s\\n' 'READY'\r")
+        try await wait { a.terminal.findNext("LT_DIRECTORY_READY") }
+        try expect(a.directoryForNewSession == "/private/tmp" && a.window?.tab.title == "tmp",
+                   "Hook-free shell cwd produces a short folder label")
+        a.setCustomName("Backend")
+        try expect(a.window?.tab.title == "Backend", "Custom tab name overrides the automatic folder label")
+        a.setCustomName(" ")
+        try expect(a.window?.tab.title == "tmp", "Blank tab name restores the automatic label")
+        a.setCustomName("Backend")
+        a.window?.makeKeyAndOrderFront(nil)
+        try await wait { app.activeSession === a }
+        let oldIDs = Set(app.sessions.keys)
+        app.newTab(nil)
+        guard let inherited = app.sessions.values.first(where: { !oldIDs.contains($0.id) }) else {
+            throw Failure(message: "No inherited tab")
+        }
+        try expect(inherited.currentDirectory == "/private/tmp", "New Tab inherits the current shell folder")
+        try await wait { app.activeSession === inherited }
+        let one = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: inherited.window!.windowNumber,
+            context: nil, characters: "1", charactersIgnoringModifiers: "1", isARepeat: false, keyCode: 18)!
+        try expect(NSApp.mainMenu?.performKeyEquivalent(with: one) == true, "Cmd-1 invokes native tab selection")
+        try await wait { app.activeSession === a }
+        let last = NSMenuItem(); last.tag = 9
+        app.selectTab(last)
+        try await wait { app.activeSession?.window === a.window?.tabGroup?.windows.last }
+        try expect(true, "Cmd-9 action selects the last tab")
+        c.window?.makeKeyAndOrderFront(nil)
+        try await wait { app.activeSession === c }
+        var restoring = app.preferences; restoring.restoreSessions = true
+        app.updatePreferences(restoring)
+        let snapshot = app.workspaceSnapshot()
+        app.saveWorkspaceForQuit()
+        try expect(snapshot.groups.count == 2 && snapshot.groups.flatMap(\.tabs).count == 4 &&
+                   SessionWorkspace.load(from: app.defaults) == snapshot,
+                   "Workspace snapshot preserves window groups, tab order, selection, names and folders")
+        for session in Array(app.sessions.values) { session.beginShutdown() }
+        try await wait { app.sessions.isEmpty }
+        try expect(a.terminationCount == 1 && b.terminationCount == 1 && c.terminationCount == 1,
                    "Multiple sessions close and release without duplicate callbacks")
+        try expect(app.restoreWorkspace(smoke: true), "Saved workspace reopens fresh native terminal sessions")
+        try await wait { app.sessions.count == 4 }
+        try expect(app.workspaceSnapshot() == snapshot, "Restored native groups retain names, folders, order and selection")
+        for session in Array(app.sessions.values) { session.beginShutdown() }
+        try await wait { app.sessions.isEmpty }
     }
 
     private func expect(_ value: Bool, _ description: String) throws {
