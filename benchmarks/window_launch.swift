@@ -4,16 +4,19 @@ import AppKit
 import Quartz
 import Foundation
 let args = CommandLine.arguments
-guard args.count == 3 else {
-    fputs("Usage: window-launch OUTPUT_JSON WORKING_DIRECTORY\n", stderr)
+let split = args.firstIndex(of: "--") ?? args.count
+let positional = Array(args[1..<split])
+guard (2...3).contains(positional.count) else {
+    fputs("Usage: window-launch OUTPUT_JSON WORKING_DIRECTORY [APP_PATH] [-- extra app args...]\n", stderr)
     exit(2)
 }
-let output = URL(fileURLWithPath: args[1])
-let appURL = URL(fileURLWithPath: "/Applications/Lean Term.app")
+let extraArguments = Array(args.dropFirst(split + 1))
+let output = URL(fileURLWithPath: positional[0])
+let appURL = URL(fileURLWithPath: positional.count == 3 ? positional[2] : "/Applications/Lean Term.app")
 let config = NSWorkspace.OpenConfiguration()
 config.createsNewApplicationInstance = true
 let frame = try PropertyListSerialization.data(fromPropertyList: [200.0,100.0,988.0,726.0], format: .xml, options: 0)
-config.arguments = ["--working-directory", args[2], "-fontSize", "13", "-windowFrame", String(data:frame,encoding:.utf8)!]
+config.arguments = ["--working-directory", positional[1], "-fontSize", "13", "-windowFrame", String(data:frame,encoding:.utf8)!] + extraArguments
 let start = ProcessInfo.processInfo.systemUptime
 var target: NSRunningApplication?
 var failed: Error?

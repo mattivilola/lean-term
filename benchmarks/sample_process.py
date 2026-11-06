@@ -35,7 +35,8 @@ def sample(pid):
             "rss_bytes": usage.resident_size,
             "process_start_mach_ticks": usage.proc_start_abstime,
             "cpu_mach_ticks": usage.user_time + usage.system_time,
-            "idle_wakeups": usage.pkg_idle_wkups}
+            "idle_wakeups": usage.pkg_idle_wkups,
+            "interrupt_wakeups": usage.interrupt_wkups}
 
 
 def main():

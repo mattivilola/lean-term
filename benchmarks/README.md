@@ -117,3 +117,24 @@ instance normally before repeating, retain all readings, and report the median
 of three warm trials. Preserve and restore the original saved window placement;
 normal window focus/close can save the temporary test frame. Avoid closing other
 user sessions without permission.
+
+## Short perf snapshot
+
+`perf_snapshot.py` is a few-minute, fully automatic check of an app bundle: warm launch to the first
+window (median of three) and idle footprint, CPU and wakeups per second (`ri_interrupt_wkups`) with 1 and with 3 tabs
+(5 s settle, then 10 one-second samples). It does not measure typing latency; that still needs the
+manual Typometer procedure above.
+
+```sh
+./script/build_and_run.sh --build-only
+python3 benchmarks/perf_snapshot.py --app "dist/Lean Term.app" --output /tmp/leanterm-perf-snapshot
+```
+
+It compiles the launch observer, starts the app with `--benchmark-session` (an isolated session: no
+user settings or saved workspace read or written, no updater or notifications, `/bin/zsh -f` shells,
+no quit confirmation) and stops only the PIDs it launched with SIGTERM. It writes
+`perf-snapshot.json` and prints a Markdown table, and warns if any `LeanTerm.Bench.*` preferences
+file is left behind.
+
+Policy: before 1.0 the snapshot runs only on request or when a change is judged perf-relevant;
+from 1.0 it runs before every release.

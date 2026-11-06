@@ -7,7 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var preferences: Preferences
     private(set) var shortcuts: ShortcutConfiguration
     let defaults: UserDefaults
-    private let smokeDefaultsDomain: String?
+    private let isolatedDefaultsDomain: String?
+    private let isBenchmarkSession: Bool
+    private var benchmarkTermination: DispatchSourceSignal?
     private var settingsWindow: SettingsWindow?
     private var shortcutsWindow: ShortcutsWindow?
     private var aboutWindow: AboutWindow?
@@ -19,16 +21,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var permitsAutomaticSessionClose: Bool { !terminationPending }
     let metricsMonitor = ProcessMetricsMonitor()
     let activityMonitor = SessionActivityMonitor()
-    lazy var notifier = BackgroundNotifier(disabled: smokeDefaultsDomain != nil)
-    lazy var updates = Updates(disabled: smokeDefaultsDomain != nil)
+    lazy var notifier = BackgroundNotifier(disabled: isolatedDefaultsDomain != nil)
+    lazy var updates = Updates(disabled: isolatedDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
 
     override init() {
-        if CommandLine.arguments.contains("--smoke-test") {
-            let name = "LeanTerm.Smoke." + UUID().uuidString
-            smokeDefaultsDomain = name
+        let benchmark = CommandLine.arguments.contains("--benchmark-session")
+        isBenchmarkSession = benchmark
+        if benchmark || CommandLine.arguments.contains("--smoke-test") {
+            let name = (benchmark ? "LeanTerm.Bench." : "LeanTerm.Smoke.") + UUID().uuidString
+            isolatedDefaultsDomain = name
             defaults = UserDefaults(suiteName: name)!
-        } else { defaults = .standard; smokeDefaultsDomain = nil }
+        } else { defaults = .standard; isolatedDefaultsDomain = nil }
         if CommandLine.arguments.contains("--reset-settings") {
             Preferences.reset(in: defaults)
             WindowPlacement.reset(in: defaults)
@@ -66,7 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             smokeCheck?.start()
         } else {
             let directory = argument("--working-directory")
-            if let directory, ShellLaunch.localDirectory(from: URL(fileURLWithPath: directory).absoluteString) == nil {
+            if isBenchmarkSession { newTerminal(directory: directory) }
+            else if let directory, ShellLaunch.localDirectory(from: URL(fileURLWithPath: directory).absoluteString) == nil {
                 let alert = NSAlert()
                 alert.messageText = "That folder isn’t available"
                 alert.informativeText = "Lean Term will open your home folder instead."
@@ -74,7 +79,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 newTerminal()
             } else if directory != nil || !restoreWorkspace() { newTerminal(directory: directory) }
         }
+        if isBenchmarkSession { startBenchmarkSession() }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Benchmark sessions open a fixed tab count and quit cleanly on SIGTERM so the isolated defaults suite is removed.
+    private func startBenchmarkSession() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        benchmarkTermination = source
+        let requested = argument("--benchmark-tabs").flatMap(Int.init) ?? 1
+        guard let first = sessions.values.first else { return }
+        for _ in 1..<min(max(requested, 1), 8) { newTerminal(tabOf: first) }
+        if let window = first.window { window.tabGroup?.selectedWindow = window }
     }
 
     @discardableResult
@@ -92,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if separateWindow { session.window?.tabbingMode = .disallowed }
         session.present()
         if separateWindow { session.window?.tabbingMode = .automatic }
-        session.start(smoke: smoke || smokeDefaultsDomain != nil)
+        session.start(smoke: smoke || isolatedDefaultsDomain != nil)
         refreshResourceMonitoring()
         return session
     }
@@ -163,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
     func savePlacement(of session: TerminalWindow) {
-        guard !terminationPending, (activeSession?.id ?? lastActiveSessionID) == session.id, let window = session.window,
+        guard !terminationPending, !isBenchmarkSession, (activeSession?.id ?? lastActiveSessionID) == session.id, let window = session.window,
               !window.styleMask.contains(.fullScreen), let placement = WindowPlacement(frame: window.frame) else { return }
         placement.save(to: defaults)
     }
@@ -193,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return SessionWorkspace(groups: groups, activeGroup: activeGroup)
     }
     func saveWorkspaceForQuit() {
+        guard !isBenchmarkSession else { return }
         guard preferences.restoreSessions else { SessionWorkspace.clear(in: defaults); return }
         let snapshot = workspaceSnapshot()
         if snapshot.groups.isEmpty { SessionWorkspace.clear(in: defaults) }
@@ -228,11 +248,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         smokeCheck?.willTerminate()
         metricsMonitor.setRunning(false)
         activityMonitor.enabled = false
-        if let smokeDefaultsDomain { defaults.removePersistentDomain(forName: smokeDefaultsDomain) }
+        if let isolatedDefaultsDomain { defaults.removePersistentDomain(forName: isolatedDefaultsDomain) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if terminationPending { return .terminateLater }
+        if isBenchmarkSession { return .terminateNow }
         let live = sessions.values.filter(\.live)
         (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })?.savePlacement()
         guard !live.isEmpty else { saveWorkspaceForQuit(); return .terminateNow }

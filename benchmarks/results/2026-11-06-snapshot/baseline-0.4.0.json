@@ -1,0 +1,234 @@
+{
+  "app": "/Users/matti/Development/ILOapps/leanterm-macosx-perf-ux/dist/Lean Term.app",
+  "app_version": "0.4.0",
+  "git_sha": "f4fefb9",
+  "macos": "27.0.1",
+  "timestamp": "2026-11-06T13:28:01.480380+00:00",
+  "launch_seconds": [
+    0.5159778750967234,
+    0.5444112084805965,
+    0.7001794166862965
+  ],
+  "launch_median_seconds": 0.5444112084805965,
+  "idle": {
+    "1_tab": {
+      "readings": [
+        {
+          "time": 1963893.322867833,
+          "footprint_bytes": 57033808,
+          "rss_bytes": 94076928,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 8969681,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 151
+        },
+        {
+          "time": 1963894.328455041,
+          "footprint_bytes": 56837200,
+          "rss_bytes": 93929472,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 8976077,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 152
+        },
+        {
+          "time": 1963895.332951458,
+          "footprint_bytes": 56607824,
+          "rss_bytes": 93716480,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 8991933,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 155
+        },
+        {
+          "time": 1963896.337269291,
+          "footprint_bytes": 56607824,
+          "rss_bytes": 93716480,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 8993113,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 156
+        },
+        {
+          "time": 1963897.341738625,
+          "footprint_bytes": 56329296,
+          "rss_bytes": 90308608,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9001236,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 156
+        },
+        {
+          "time": 1963898.345456625,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90243072,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9012423,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 158
+        },
+        {
+          "time": 1963899.350871958,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90259456,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9027161,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 160
+        },
+        {
+          "time": 1963900.35432675,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90226688,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9029655,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 161
+        },
+        {
+          "time": 1963901.357543083,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90226688,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9029655,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 161
+        },
+        {
+          "time": 1963902.3622765,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90226688,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9030408,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 162
+        },
+        {
+          "time": 1963903.367461875,
+          "footprint_bytes": 56230992,
+          "rss_bytes": 90226688,
+          "process_start_mach_ticks": 47133307252984,
+          "cpu_mach_ticks": 9030408,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 162
+        }
+      ],
+      "summary": {
+        "footprint_mib": 53.62605285644531,
+        "rss_mib": 86.078125,
+        "cpu_percent_one_core": 0.018428908721781618,
+        "wakeups_per_second": 0.9954948064596113
+      }
+    },
+    "3_tab": {
+      "readings": [
+        {
+          "time": 1963910.110694833,
+          "footprint_bytes": 116884560,
+          "rss_bytes": 133562368,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24350257,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 223
+        },
+        {
+          "time": 1963911.114250166,
+          "footprint_bytes": 116884560,
+          "rss_bytes": 133562368,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24351731,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 224
+        },
+        {
+          "time": 1963912.119369375,
+          "footprint_bytes": 116278352,
+          "rss_bytes": 133103616,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24375872,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 226
+        },
+        {
+          "time": 1963913.124627666,
+          "footprint_bytes": 116278352,
+          "rss_bytes": 133103616,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24375872,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 226
+        },
+        {
+          "time": 1963914.128571208,
+          "footprint_bytes": 116278352,
+          "rss_bytes": 133103616,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24375872,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 226
+        },
+        {
+          "time": 1963915.133655333,
+          "footprint_bytes": 116245584,
+          "rss_bytes": 133038080,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24384950,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 228
+        },
+        {
+          "time": 1963916.138297458,
+          "footprint_bytes": 115917904,
+          "rss_bytes": 128778240,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24408850,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 231
+        },
+        {
+          "time": 1963917.143482625,
+          "footprint_bytes": 115917904,
+          "rss_bytes": 128778240,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24408850,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 231
+        },
+        {
+          "time": 1963918.14799875,
+          "footprint_bytes": 115917904,
+          "rss_bytes": 128778240,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24408850,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 231
+        },
+        {
+          "time": 1963919.152458833,
+          "footprint_bytes": 115917904,
+          "rss_bytes": 128778240,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24408850,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 231
+        },
+        {
+          "time": 1963920.154998458,
+          "footprint_bytes": 115917904,
+          "rss_bytes": 128630784,
+          "process_start_mach_ticks": 47133708296217,
+          "cpu_mach_ticks": 24408850,
+          "idle_wakeups": 0,
+          "interrupt_wakeups": 231
+        }
+      ],
+      "summary": {
+        "footprint_mib": 110.86042785644531,
+        "rss_mib": 126.875,
+        "cpu_percent_one_core": 0.0,
+        "wakeups_per_second": 0.0
+      }
+    }
+  },
+  "leftover_preferences": []
+}
