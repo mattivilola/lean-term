@@ -22,7 +22,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from sample_process import TIMEBASE, sample  # noqa: E402
 
-LAUNCH_TRIALS, SETTLE_SECONDS, IDLE_SECONDS = 3, 5, 10
+LAUNCH_TRIALS, IDLE_SECONDS = 3, 10
 MIB = 1024 * 1024
 
 
@@ -54,10 +54,10 @@ def quit_app(pid):
     raise RuntimeError(f"pid {pid} did not exit within 10 s of SIGTERM")
 
 
-def idle_trial(observer, app, directory, tabs):
+def idle_trial(observer, app, directory, tabs, settle):
     pid = launch(observer, app, directory, f"idle-{tabs}tab", tabs)["pid"]
     try:
-        time.sleep(SETTLE_SECONDS)
+        time.sleep(settle)
         readings = []
         for _ in range(IDLE_SECONDS + 1):
             readings.append(sample(pid))
@@ -83,6 +83,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--settle", type=float, default=5, help="seconds to wait before idle sampling")
+    parser.add_argument("--only-tabs", type=int, help="run only this idle trial (skips launch trials and the other tab count)")
     args = parser.parse_args()
     app, out = args.app.resolve(), args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -90,11 +92,12 @@ def main():
     observer = build_observer(out)
 
     launches = []
-    for trial in range(LAUNCH_TRIALS):
+    for trial in range(0 if args.only_tabs else LAUNCH_TRIALS):
         run = launch(observer, app, out, f"trial-{trial + 1}", 1)
         quit_app(run["pid"])
         launches.append(run["seconds"])
-    idle = {tabs: idle_trial(observer, app, out, tabs) for tabs in (1, 3)}
+    idle = {tabs: idle_trial(observer, app, out, tabs, args.settle)
+            for tabs in ((args.only_tabs,) if args.only_tabs else (1, 3))}
 
     leftovers = []
     for path in sorted(glob.glob(os.path.expanduser("~/Library/Preferences/LeanTerm.Bench.*.plist"))):
@@ -105,15 +108,17 @@ def main():
     if leftovers:
         print("WARNING: isolated benchmark preferences left behind:\n" + "\n".join(leftovers), file=sys.stderr)
 
-    launch_median = statistics.median(launches)
+    launch_median = statistics.median(launches) if launches else None
     (out / "perf-snapshot.json").write_text(json.dumps({
         "app": str(app), "app_version": version, "git_sha": git_sha(), "macos": platform.mac_ver()[0],
         "timestamp": datetime.now(timezone.utc).isoformat(), "launch_seconds": launches,
         "launch_median_seconds": launch_median, "idle": {f"{k}_tab": v for k, v in idle.items()},
         "leftover_preferences": leftovers}, indent=2) + "\n")
 
-    rows = [("Warm launch to first window (median)", f"{launch_median:.3f} s ({', '.join(f'{s:.3f}' for s in launches)})")]
+    rows = [("Warm launch to first window (median)", f"{launch_median:.3f} s ({', '.join(f'{s:.3f}' for s in launches)})")] if launches else []
     for tabs, label in ((1, "1 tab idle"), (3, "3 tabs idle")):
+        if tabs not in idle:
+            continue
         s = idle[tabs]["summary"]
         rows.append((label, f"{s['footprint_mib']:.1f} MiB footprint / {s['cpu_percent_one_core']:.2f}% CPU / "
                             f"{s['wakeups_per_second']:.1f} wakeups/s"))
