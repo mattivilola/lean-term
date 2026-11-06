@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — Session signals
 
 - Remote tabs: ssh, autossh, mosh and Eternal Terminal sessions show an amber network mark and the remote host in the subtitle, without busy marks or sweeps while you type.
 - Root sessions show an amber `#` mark beside the usual activity dot.
 - Optional host colour rules (Settings › Hosts) tint matching remote tabs and add a steady line above the terminal.
 - A bell in a tab you are not viewing shows an amber bell mark; the bell stays silent.
-- Optional notifications and Dock badge for long commands that finish, and bells, while you are elsewhere.
+- Optional notifications for long commands that finish while you are elsewhere, plus a Dock badge for missed command completions and bells.
 - OSC 9;4 progress bars use the brand phosphor colour.
 
 ## 0.2.0 — Command activity

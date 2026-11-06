@@ -306,6 +306,12 @@ final class SmokeCheck {
         var result: [String: Any] = ["passed": passed, "checks": checks, "renderer": "CoreGraphics",
                                    "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development",
                                    "sessionCount": app?.sessions.count ?? -1]
+        if !passed, let app {
+            result["sessionDiagnostics"] = app.sessions.values.map { session in
+                ["state": String(describing: session.state),
+                 "lastVisibleRows": Array(session.terminal.visibleRowsText(0..<session.terminal.terminalDimensions.rows).suffix(12))] as [String: Any]
+            }
+        }
         if requestedPolicy == "quit-cancel" { result["scenario"] = "quit-cancel" }
         if let policy {
             result["exitPolicy"] = policy.rawValue

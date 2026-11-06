@@ -137,3 +137,20 @@ activity colors across palettes, and sweep restoration when returning to a tab.
 Activity detection rules have automated model coverage; the native regression
 checks do not assess animation appearance. Performance figures remain the
 recorded 0.1.2 measurements; no new latency or scanner on/off results are claimed.
+
+## 0.3.0 — Focused release checks
+
+All 27 Swift core tests, 14 release-helper tests and the benchmark-calculation
+test passed. The Release build and one complete native smoke run passed all
+26 checks, covering PTY output, appearance, screen/history clearing, resource
+sampling, native tabs and session cleanup. No new test suite or repeated exit
+policy matrix was added for this release.
+
+An initial smoke attempt timed out waiting for the generated scrollback marker
+after appearance/Find changes. A diagnostic rerun passed every check without a
+production terminal behavior change. Both local reports were retained; failed
+smoke reports now include bounded visible terminal output for diagnosis.
+
+New session classification and host-rule behavior have core-test coverage.
+Live remote connections and notification permission/delivery were not exercised
+by the native smoke run. Published performance figures remain the 0.1.2 results.

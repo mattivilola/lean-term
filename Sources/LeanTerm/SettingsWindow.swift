@@ -16,7 +16,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
-    private let notifications = NSButton(checkboxWithTitle: "Notify about finished commands and bells", target: nil, action: nil)
+    private let notifications = NSButton(checkboxWithTitle: "Show notifications and Dock badge", target: nil, action: nil)
     private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
@@ -86,7 +86,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
             Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
         let notifying = Self.vertical([notifications,
-            Self.note("Posts a notification when a command of 10 s or more finishes, and badges the Dock icon for unseen tabs, while you are elsewhere.")], spacing: 7)
+            Self.note("Notifies when a command of 10 s or more finishes. Badges missed completions and bells while you are elsewhere.")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Sessions"), sessions],
