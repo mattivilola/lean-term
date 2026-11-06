@@ -62,17 +62,13 @@ final class ResourceStatusView: NSView {
     func update(_ snapshot: ProcessMetricsSnapshot) {
         switch snapshot.status {
         case .paused:
-            cpuLabel.stringValue = "CPU paused"
-            memoryLabel.stringValue = "MEM paused"
+            setText("CPU paused", "MEM paused")
         case .sampling:
-            cpuLabel.stringValue = snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —"
-            memoryLabel.stringValue = snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM …"
+            setText(snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —", snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM …")
         case .available:
-            cpuLabel.stringValue = snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —"
-            memoryLabel.stringValue = snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM —"
+            setText(snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —", snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM —")
         case .unavailable:
-            cpuLabel.stringValue = "CPU n/a"
-            memoryLabel.stringValue = "MEM n/a"
+            setText("CPU n/a", "MEM n/a")
         }
 
         cpuGraph.values = snapshot.cpuHistory.map { value in
@@ -86,6 +82,11 @@ final class ResourceStatusView: NSView {
         setAccessibilityLabel(message)
         setAccessibilityValue(message)
         toolTip = message
+    }
+
+    private func setText(_ cpu: String, _ memory: String) {
+        if cpuLabel.stringValue != cpu { cpuLabel.stringValue = cpu }
+        if memoryLabel.stringValue != memory { memoryLabel.stringValue = memory }
     }
 
     func applyAccent(_ color: NSColor) {
@@ -127,52 +128,86 @@ final class ResourceStatusView: NSView {
 
 @MainActor
 private final class ResourceSparklineView: NSView {
-    var values: [Double?] = [] { didSet { setNeedsDisplay(bounds) } }
-    var accentColor: NSColor = .controlAccentColor { didSet { setNeedsDisplay(bounds) } }
+    var values: [Double?] = [] { didSet { if values != oldValue { updatePaths() } } }
+    var accentColor: NSColor = .controlAccentColor { didSet { updateColors() } }
+
+    private let baselineLayer = CAShapeLayer()
+    private let lineLayer = CAShapeLayer()
+    private let dotsLayer = CAShapeLayer()
 
     override var intrinsicContentSize: NSSize { NSSize(width: 32, height: 14) }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .never
+        baselineLayer.lineWidth = 0.5
+        baselineLayer.fillColor = nil
+        lineLayer.lineWidth = 1.25
+        lineLayer.lineCap = .round
+        lineLayer.lineJoin = .round
+        lineLayer.fillColor = nil
+        dotsLayer.strokeColor = nil
+        for shape in [baselineLayer, lineLayer, dotsLayer] {
+            shape.actions = ["path": NSNull(), "strokeColor": NSNull(), "fillColor": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            layer?.addSublayer(shape)
+        }
+        updateColors()
+    }
+
+    required init?(coder: NSCoder) { fatalError("Programmatic views only") }
+
+    override func layout() {
+        super.layout()
+        for shape in [baselineLayer, lineLayer, dotsLayer] { shape.frame = bounds }
+        updatePaths()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            baselineLayer.strokeColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+            lineLayer.strokeColor = accentColor.withAlphaComponent(0.95).cgColor
+            dotsLayer.fillColor = accentColor.withAlphaComponent(0.95).cgColor
+        }
+    }
+
+    private func updatePaths() {
         guard bounds.width > 0, bounds.height > 0 else { return }
-
         let inset: CGFloat = 1
-        let baselineY = bounds.minY + inset
-        let baseline = NSBezierPath()
-        baseline.lineWidth = 0.5
-        baseline.move(to: NSPoint(x: bounds.minX, y: baselineY))
-        baseline.line(to: NSPoint(x: bounds.maxX, y: baselineY))
-        NSColor.separatorColor.withAlphaComponent(0.55).setStroke()
-        baseline.stroke()
+        let baseline = CGMutablePath()
+        baseline.move(to: CGPoint(x: bounds.minX, y: bounds.minY + inset))
+        baseline.addLine(to: CGPoint(x: bounds.maxX, y: bounds.minY + inset))
+        baselineLayer.path = baseline
 
-        guard values.count > 0 else { return }
         let usableHeight = max(1, bounds.height - inset * 2)
         let denominator = max(1, values.count - 1)
-        let path = NSBezierPath()
-        path.lineWidth = 1.25
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
+        let path = CGMutablePath()
+        let dots = CGMutablePath()
         var hasPoint = false
         var segmentLength = 0
-        var isolatedPoint: NSPoint?
-        let dots = NSBezierPath()
+        var isolatedPoint: CGPoint?
+
+        func closeSegment() {
+            if segmentLength == 1, let isolatedPoint {
+                dots.addEllipse(in: CGRect(x: isolatedPoint.x - 1, y: isolatedPoint.y - 1, width: 2, height: 2))
+            }
+            hasPoint = false
+            segmentLength = 0
+            isolatedPoint = nil
+        }
 
         for (index, value) in values.enumerated() {
-            guard let value, value.isFinite else {
-                if segmentLength == 1, let isolatedPoint {
-                    dots.appendOval(in: NSRect(x: isolatedPoint.x - 1, y: isolatedPoint.y - 1,
-                                               width: 2, height: 2))
-                }
-                hasPoint = false
-                segmentLength = 0
-                isolatedPoint = nil
-                continue
-            }
+            guard let value, value.isFinite else { closeSegment(); continue }
             let fraction = min(1, max(0, value))
-            let point = NSPoint(x: bounds.minX + inset + (bounds.width - inset * 2) * CGFloat(index) / CGFloat(denominator),
+            let point = CGPoint(x: bounds.minX + inset + (bounds.width - inset * 2) * CGFloat(index) / CGFloat(denominator),
                                 y: bounds.minY + inset + usableHeight * CGFloat(fraction))
             if hasPoint {
-                path.line(to: point)
+                path.addLine(to: point)
                 segmentLength += 1
                 isolatedPoint = nil
             } else {
@@ -182,14 +217,8 @@ private final class ResourceSparklineView: NSView {
             }
             hasPoint = true
         }
-
-        if segmentLength == 1, let isolatedPoint {
-            dots.appendOval(in: NSRect(x: isolatedPoint.x - 1, y: isolatedPoint.y - 1,
-                                       width: 2, height: 2))
-        }
-        accentColor.withAlphaComponent(0.95).setStroke()
-        path.stroke()
-        accentColor.withAlphaComponent(0.95).setFill()
-        dots.fill()
+        closeSegment()
+        lineLayer.path = path
+        dotsLayer.path = dots
     }
 }

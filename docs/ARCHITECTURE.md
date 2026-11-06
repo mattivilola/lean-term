@@ -97,11 +97,14 @@ scripts publish only verified, signed and notarized artifacts.
 ## Resource footer and session exit preferences (0.1.3)
 
 One app-owned process sampler reads this GUI process’s CPU counters and physical
-footprint once per second while a terminal is visible. It stops when disabled,
-all terminals are hidden/occluded/minimized, or termination is pending. One-core
-CPU percentages use Mach ticks for both CPU and elapsed time; child processes
-are excluded. Footer views render only their own small, unanimated 60-sample
-sparklines, with zero-based scales and gaps across pauses.
+footprint once per second while the app is active and a terminal is visible, and
+every five seconds while the app is inactive but a terminal is still visible. It
+stops when disabled, all terminals are hidden/occluded/minimized, or termination
+is pending. One-core CPU percentages use Mach ticks for both CPU and elapsed
+time; child processes are excluded. Footer sparklines are layer-backed views with
+`CAShapeLayer`s (60-sample history, zero-based scales, gaps across pauses) that
+rebuild only their paths on new values, and labels are assigned only when their
+text changes.
 
 Close-on-shell-exit and quit-after-last-session are independent opt-in settings;
 missing values retain the existing keep-open behavior. Launch failures remain

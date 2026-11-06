@@ -63,6 +63,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             session.present()
         }
         notifier.setEnabled(preferences.notifyInBackground, onDenied: nil)
+        for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: NSApp, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshResourceMonitoring() }
+            }
+        }
         buildMenus()
         applyPreferences()
         if let report = argument("--smoke-test") {
@@ -343,7 +348,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         activityMonitor.enabled = !terminationPending
     }
     func refreshResourceMonitoring() {
-        metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible })
+        metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible },
+                                  interval: NSApp.isActive ? 1 : 5)
         for session in sessions.values where preferences.showResourceUsage && session.isResourceDisplayVisible {
             session.resourceStatus.update(metricsMonitor.snapshot)
         }

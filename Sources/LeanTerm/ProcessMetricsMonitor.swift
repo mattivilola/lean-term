@@ -9,18 +9,24 @@ final class ProcessMetricsMonitor {
 
     private var model = ProcessMetricsModel()
     private var timer: Timer?
+    private var interval: TimeInterval = 1
     private let processID = getpid()
 
-    func setRunning(_ enabled: Bool) {
+    /// Samples every `interval` seconds while enabled; changing the interval restarts the timer.
+    func setRunning(_ enabled: Bool, interval: TimeInterval = 1) {
         if enabled {
-            guard timer == nil else { return }
-            model.setRunning(true)
-            publish()
-
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard timer == nil || self.interval != interval else { return }
+            let wasRunning = timer != nil
+            timer?.invalidate()
+            self.interval = interval
+            if !wasRunning {
+                model.setRunning(true)
+                publish()
+            }
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.sample() }
             }
-            timer.tolerance = 0.2
+            timer.tolerance = interval * 0.2
             self.timer = timer
             RunLoop.main.add(timer, forMode: .default)
             sample()
