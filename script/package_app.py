@@ -69,6 +69,22 @@ with (resources / 'Build.lock').open('a+b') as lock:
     except subprocess.CalledProcessError:
         info['LeanTermSourceRevision'] = 'unknown'
     if product == 'LeanTerm':
+        # Alternate rank: Lean Term accepts these opens but never claims them; Settings offers an explicit opt-in.
+        info['CFBundleDocumentTypes'] = [
+            {'CFBundleTypeName': 'Folder', 'CFBundleTypeRole': 'Viewer', 'LSHandlerRank': 'Alternate',
+             'LSItemContentTypes': ['public.folder']},
+            {'CFBundleTypeName': 'Shell Script', 'CFBundleTypeRole': 'Shell', 'LSHandlerRank': 'Alternate',
+             'LSItemContentTypes': ['com.apple.terminal.shell-script'], 'CFBundleTypeExtensions': ['command', 'tool']},
+        ]
+        info['CFBundleURLTypes'] = [
+            {'CFBundleURLName': 'SSH', 'CFBundleURLSchemes': ['ssh'], 'CFBundleTypeRole': 'Shell'},
+        ]
+        info['NSServices'] = [
+            {'NSMenuItem': {'default': 'New Lean Term Tab Here'}, 'NSMessage': 'newTabHere', 'NSPortName': name,
+             'NSSendFileTypes': ['public.folder']},
+            {'NSMenuItem': {'default': 'New Lean Term Window Here'}, 'NSMessage': 'newWindowHere', 'NSPortName': name,
+             'NSSendFileTypes': ['public.folder']},
+        ]
         frameworks = app / 'Contents/Frameworks'
         frameworks.mkdir(exist_ok=True)
         source = root / '.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework'

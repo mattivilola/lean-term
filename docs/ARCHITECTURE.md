@@ -52,6 +52,17 @@ active, tracked by one Bool so enable/disable stay balanced and release on quit.
 bracketed paste first shows a sheet with a short preview; "Don't ask again" and
 Settings › Behavior turn `confirmMultilinePaste` off. Other pastes are untouched.
 
+## macOS integration
+
+Open requests (`application(_:open:)`) turn folders into a tab at that folder, `.command`/`.tool`
+scripts into a tab at their folder that types the escaped path plus `; exit` once the shell starts,
+and `ssh://` links into a tab that types `ssh [-p port] [user@]host`. Links are parsed by the strict
+`SSHLink` in Core; unvalidated text never reaches a command line. Opens delivered before launch
+finishes are queued: a saved workspace is restored first and the opens join its active window; otherwise they replace the default window. The Info.plist (from
+`script/package_app.py`) declares folder and shell-script document types at Alternate rank, the `ssh`
+scheme, and two Finder services served by `ServicesProvider`. Lean Term never claims defaults itself;
+the Settings button is the only place that requests them.
+
 ## Shells and shutdown
 
 The account's login shell starts at home, or an explicitly supplied directory,

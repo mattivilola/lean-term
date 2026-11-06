@@ -59,6 +59,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     private var didStart = false
     weak var app: AppDelegate?
     var terminationCount = 0
+    /// Typed into the shell right after it starts (opened scripts and ssh links), like Terminal.app.
+    var initialCommand: String?
 
     var live: Bool { state == .running || state == .starting || state == .closing }
     var isResourceDisplayVisible: Bool {
@@ -155,6 +157,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             terminal.startProcess(executable: launch.executable, environment: launch.environment, execName: launch.execName, currentDirectory: currentDirectory)
         }
         if state == .starting { state = terminal.process.running ? .running : .failed }
+        if state == .running, let initialCommand { terminal.send(txt: initialCommand + "\r") }
         refreshDirectory()
     }
 

@@ -160,3 +160,15 @@ import Testing
     #expect(ShellEscape.path("a\nrm -rf ~") == "$'a\\nrm -rf ~'")
     #expect(ShellEscape.path("a\tb'c\\d\u{1B}") == "$'a\\tb\\'c\\\\d\\x1B'")
 }
+
+@Test func sshLinksAcceptOnlySafeUsersHostsAndPorts() throws {
+    func command(_ text: String) -> String? { URL(string: text).flatMap(SSHLink.init)?.command }
+    #expect(command("ssh://example.com") == "ssh example.com")
+    #expect(command("ssh://me.x_y@host-1.example.com:2222/") == "ssh -p 2222 me.x_y@host-1.example.com")
+    #expect(command("SSH://10.0.0.1:22") == "ssh -p 22 10.0.0.1")
+    #expect(command("ssh://root@[fe80::1]:2200") == "ssh -p 2200 root@fe80::1")
+    for bad in ["ssh://", "ssh://-oProxyCommand=x", "ssh://a;rm@host", "ssh://host:0", "ssh://host:65536", "ssh://host:22:22",
+                "ssh://user:pw@host", "ssh://host/path", "ssh://host?x=1", "ssh://ho%20st", "ssh://a@b@host", "ssh://[abc]", "https://host"] {
+        #expect(command(bad) == nil, "\(bad)")
+    }
+}

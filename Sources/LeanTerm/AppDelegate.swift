@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import UniformTypeIdentifiers
 import LeanTermCore
 
 @MainActor
@@ -17,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var terminationPending = false
     /// True while this app holds a Secure Event Input request; keeps enable/disable strictly balanced.
     private var secureInputEngaged = false
+    private var didFinishLaunching = false
+    /// Open requests that arrive before launch finishes replace the default window; a saved workspace is restored first.
+    private var launchOpenURLs: [URL] = []
+    private let servicesProvider = ServicesProvider()
     private var quitApproved = false
     private var lastActiveSessionID: UUID?
     private var smokeCheck: SmokeCheck?
@@ -79,9 +84,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         buildMenus()
         applyPreferences()
         refreshSecureInput()
+        servicesProvider.app = self
+        NSApp.servicesProvider = servicesProvider
+        NSUpdateDynamicServices()
+        didFinishLaunching = true
         if let report = argument("--smoke-test") {
             smokeCheck = SmokeCheck(app: self, report: report)
             smokeCheck?.start()
+        } else if !launchOpenURLs.isEmpty {
+            let urls = launchOpenURLs
+            launchOpenURLs = []
+            // A saved workspace is restored first, as in a normal launch; the opens then join its active window.
+            restoreWorkspace()
+            open(urls)
         } else {
             let directory = argument("--working-directory")
             if isBenchmarkSession { newTerminal(directory: directory) }
@@ -115,10 +130,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @discardableResult
-    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, tabOrder: NSWindow.OrderingMode = .above, smoke: Bool = false, separateWindow: Bool = false, present: Bool = true) -> TerminalWindow? {
+    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, tabOrder: NSWindow.OrderingMode = .above, smoke: Bool = false, separateWindow: Bool = false, present: Bool = true, initialCommand: String? = nil) -> TerminalWindow? {
         guard !terminationPending else { return nil }
         let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
+        session.initialCommand = initialCommand
         session.activityMonitor = activityMonitor
         let placement = WindowPlacement(defaults: defaults)
         session.restorePlacement(placement, tabOf: tabOf)
@@ -264,6 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         if selectedWindows.indices.contains(saved.activeGroup) {
             selectedWindows[saved.activeGroup].makeKeyAndOrderFront(nil)
+            let activeTab = selectedIndex(saved.groups[saved.activeGroup])
+            if let id = restored[saved.activeGroup][activeTab]?.id { lastActiveSessionID = id }
         }
         workspaceRestorePending = !pending.isEmpty
         func step() {
@@ -277,6 +295,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         if !pending.isEmpty { DispatchQueue.main.async { step() } }
         return !selectedWindows.isEmpty
+    }
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard didFinishLaunching else { launchOpenURLs += urls; return }
+        open(urls)
+    }
+    /// Folders open a tab there, `.command`/`.tool` scripts run in a tab at their folder, ssh links run ssh.
+    private func open(_ urls: [URL]) {
+        guard !terminationPending else { return }
+        for url in urls {
+            if url.isFileURL {
+                let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+                if isFolder { openTerminal(in: url) }
+                else if ["command", "tool"].contains(url.pathExtension.lowercased()) {
+                    openTerminal(in: url.deletingLastPathComponent(), command: ShellEscape.path(url.path) + "; exit")
+                }
+            } else if url.scheme?.lowercased() == "ssh" {
+                if let link = SSHLink(url) { openTerminal(in: nil, command: link.command) }
+                else {
+                    let alert = NSAlert()
+                    alert.messageText = "That ssh link isn't valid"
+                    alert.informativeText = "Lean Term only opens ssh links with a plain user, host and port."
+                    alert.runModal()
+                }
+            }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    /// A tab in the active window, or a new window when none is open.
+    func openTerminal(in folder: URL?, command: String? = nil, newWindow: Bool = false) {
+        let directory = folder.flatMap { ShellLaunch.localDirectory(from: $0.absoluteString) }
+        let parent = newWindow ? nil : (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })
+        newTerminal(directory: directory, tabOf: parent, separateWindow: parent == nil, initialCommand: command)
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { newTerminal() }
@@ -517,5 +567,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: name), args.indices.contains(i + 1) else { return nil }
         return args[i + 1]
+    }
+}
+
+/// Finder services "New Lean Term Tab Here" and "New Lean Term Window Here" (declared in Info.plist).
+@MainActor
+final class ServicesProvider: NSObject {
+    weak var app: AppDelegate?
+
+    @objc func newTabHere(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        open(pboard, newWindow: false)
+    }
+    @objc func newWindowHere(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        open(pboard, newWindow: true)
+    }
+    private func open(_ pboard: NSPasteboard, newWindow: Bool) {
+        let urls = pboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        var folders: [URL] = []
+        for url in urls {
+            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            let folder = isFolder ? url : url.deletingLastPathComponent()
+            if !folders.contains(folder) { folders.append(folder) }
+        }
+        for folder in folders { app?.openTerminal(in: folder, newWindow: newWindow) }
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

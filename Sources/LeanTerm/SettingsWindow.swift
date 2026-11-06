@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import LeanTermCore
 
 @MainActor
@@ -14,6 +15,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
+    private let makeDefault = NSButton(title: "Make Lean Term the Default Terminal", target: nil, action: nil)
+    private let defaultStatus = NSTextField(labelWithString: "")
     private let restore = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
@@ -90,13 +93,19 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
         let notifying = Self.vertical([notifications,
             Self.note("Notifies when a command of 10 s or more finishes. Badges missed completions and bells while you are elsewhere.")], spacing: 7)
+        makeDefault.target = self; makeDefault.action = #selector(makeDefaultTerminal)
+        makeDefault.bezelStyle = .rounded; makeDefault.controlSize = .small
+        defaultStatus.font = .systemFont(ofSize: 11); defaultStatus.textColor = .secondaryLabelColor
+        let defaultTerminal = Self.vertical([makeDefault, defaultStatus,
+            Self.note("Finder: right-click a folder › Services › New Lean Term Tab Here (enable it in System Settings › Keyboard › Keyboard Shortcuts › Services if missing). Lean VS Code: set \"terminal.external.osxExec\" to \"Lean Term.app\".")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
             [NSTextField(labelWithString: "Activity"), activity],
-            [NSTextField(labelWithString: "Notifications"), notifying]
+            [NSTextField(labelWithString: "Notifications"), notifying],
+            [NSTextField(labelWithString: "Default terminal"), defaultTerminal]
         ])
         let updatesPage: NSView
         if app.updates.available {
@@ -129,7 +138,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             ])
         }
         NSLayoutConstraint.activate([
-            pageContainer.heightAnchor.constraint(equalToConstant: 540),
+            pageContainer.heightAnchor.constraint(equalToConstant: 700),
             pageContainer.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
             scroll.heightAnchor.constraint(equalToConstant: height - 222)
         ])
@@ -300,6 +309,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         if value.hostColorRules != shownRules, hosts.editedRow < 0 { reloadHosts(value.hostColorRules) }
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
+        refreshDefaultTerminal()
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = TerminalTheme(palette: value.palette, dark: dark)
         preview.backgroundColor = theme.background
@@ -327,6 +337,33 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.showSessionMarks = sessionMarks.state == .on
         value.notifyInBackground = notifications.state == .on
         app.updatePreferences(value)
+    }
+    private static let scriptType = UTType("com.apple.terminal.shell-script")
+    private static let sshProbe = URL(string: "ssh://example.com")!
+
+    private func refreshDefaultTerminal() {
+        let own = Bundle.main.bundleURL.standardizedFileURL
+        let workspace = NSWorkspace.shared
+        let scripts = Self.scriptType.flatMap { workspace.urlForApplication(toOpen: $0) }?.standardizedFileURL == own
+        let ssh = workspace.urlForApplication(toOpen: Self.sshProbe)?.standardizedFileURL == own
+        defaultStatus.stringValue = scripts && ssh ? "Lean Term opens shell scripts and ssh links"
+            : (scripts ? "Another app opens ssh links" : "Another app opens shell scripts")
+        makeDefault.isEnabled = !(scripts && ssh)
+    }
+    /// The only place a default-app change is requested; macOS may ask the user to confirm.
+    @objc private func makeDefaultTerminal() {
+        let appURL = Bundle.main.bundleURL
+        makeDefault.isEnabled = false
+        Task { @MainActor in
+            do {
+                if let type = Self.scriptType { try await NSWorkspace.shared.setDefaultApplication(at: appURL, toOpen: type) }
+                try await NSWorkspace.shared.setDefaultApplication(at: appURL, toOpenURLsWithScheme: "ssh")
+            } catch {
+                let alert = NSAlert(error: error)
+                if let window { alert.beginSheetModal(for: window, completionHandler: nil) } else { alert.runModal() }
+            }
+            refreshDefaultTerminal()
+        }
     }
     @objc private func updateSettingsChanged() {
         app?.updates.automaticallyChecks = automaticChecks.state == .on
