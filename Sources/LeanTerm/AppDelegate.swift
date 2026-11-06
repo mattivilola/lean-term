@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var lastActiveSessionID: UUID?
     private var smokeCheck: SmokeCheck?
     private var lastSessionQuitQueued = false
+    /// True while saved tabs beyond each window's selected one are still being added.
+    private(set) var workspaceRestorePending = false
     var permitsAutomaticSessionClose: Bool { !terminationPending }
     let metricsMonitor = ProcessMetricsMonitor()
     let activityMonitor = SessionActivityMonitor()
@@ -85,6 +87,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             } else if directory != nil || !restoreWorkspace() { newTerminal(directory: directory) }
         }
         if isBenchmarkSession { startBenchmarkSession() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, !self.terminationPending else { return }
+            self.updates.start()
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -102,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @discardableResult
-    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, smoke: Bool = false, separateWindow: Bool = false) -> TerminalWindow? {
+    func newTerminal(directory: String? = nil, tabOf: TerminalWindow? = nil, tabOrder: NSWindow.OrderingMode = .above, smoke: Bool = false, separateWindow: Bool = false, present: Bool = true) -> TerminalWindow? {
         guard !terminationPending else { return nil }
         let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
@@ -111,10 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         session.restorePlacement(placement, tabOf: tabOf)
         sessions[session.id] = session
         if let parent = tabOf?.window, let window = session.window {
-            parent.addTabbedWindow(window, ordered: .above)
+            let selected = present ? nil : parent.tabGroup?.selectedWindow
+            parent.addTabbedWindow(window, ordered: tabOrder)
+            // A background tab never takes selection or key status from the tab that was showing.
+            if let selected { selected.tabGroup?.selectedWindow = selected }
         }
         if separateWindow { session.window?.tabbingMode = .disallowed }
-        session.present()
+        if present { session.present() } else { session.window?.makeFirstResponder(session.terminal) }
         if separateWindow { session.window?.tabbingMode = .automatic }
         session.start(smoke: smoke || isolatedDefaultsDomain != nil)
         refreshResourceMonitoring()
@@ -223,26 +232,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if snapshot.groups.isEmpty { SessionWorkspace.clear(in: defaults) }
         else { snapshot.save(to: defaults) }
     }
+    /// Opens every saved window with its selected tab at once, then adds the remaining tabs one per
+    /// run-loop turn at their saved positions. Shells start as each tab is created.
     @discardableResult
     func restoreWorkspace(smoke: Bool = false) -> Bool {
         guard preferences.restoreSessions, let saved = SessionWorkspace.load(from: defaults) else { return false }
+        var restored = saved.groups.map { [TerminalWindow?](repeating: nil, count: $0.tabs.count) }
         var selectedWindows: [NSWindow] = []
-        for group in saved.groups {
-            var restored: [TerminalWindow] = []
-            for tab in group.tabs {
-                guard let session = newTerminal(directory: tab.directory, tabOf: restored.last, smoke: smoke,
-                                                separateWindow: restored.isEmpty) else { continue }
-                session.setCustomName(tab.customName)
-                restored.append(session)
-            }
-            if restored.indices.contains(group.selectedTab), let window = restored[group.selectedTab].window {
-                window.tabGroup?.selectedWindow = window
-                selectedWindows.append(window)
-            }
+        var pending: [(group: Int, tab: Int)] = []
+        func selectedIndex(_ group: SessionWindowGroup) -> Int { group.tabs.indices.contains(group.selectedTab) ? group.selectedTab : 0 }
+        func create(_ group: Int, _ tab: Int, tabOf: TerminalWindow?, order: NSWindow.OrderingMode = .above, present: Bool = true) {
+            let saved = saved.groups[group].tabs[tab]
+            guard let session = newTerminal(directory: saved.directory, tabOf: tabOf, tabOrder: order, smoke: smoke,
+                                            separateWindow: tabOf == nil, present: present) else { return }
+            session.setCustomName(saved.customName)
+            restored[group][tab] = session
+        }
+        for (index, group) in saved.groups.enumerated() {
+            let selected = selectedIndex(group)
+            create(index, selected, tabOf: nil)
+            guard let window = restored[index][selected]?.window else { continue }
+            selectedWindows.append(window)
+            pending += group.tabs.indices.filter { $0 != selected }.map { (index, $0) }
         }
         if selectedWindows.indices.contains(saved.activeGroup) {
             selectedWindows[saved.activeGroup].makeKeyAndOrderFront(nil)
         }
+        workspaceRestorePending = !pending.isEmpty
+        func step() {
+            guard !terminationPending, !pending.isEmpty else { workspaceRestorePending = false; return }
+            let (group, tab) = pending.removeFirst()
+            let selected = selectedIndex(saved.groups[group])
+            // Tabs before the first created one go in front of the selected tab; others follow their predecessor.
+            if tab < selected && tab == 0 { create(group, tab, tabOf: restored[group][selected], order: .below, present: false) }
+            else { create(group, tab, tabOf: restored[group][tab - 1], present: false) }
+            DispatchQueue.main.async { step() }
+        }
+        if !pending.isEmpty { DispatchQueue.main.async { step() } }
         return !selectedWindows.isEmpty
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

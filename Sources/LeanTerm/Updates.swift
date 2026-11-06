@@ -6,6 +6,7 @@ import Sparkle
 @MainActor
 final class Updates: NSObject, NSMenuItemValidation {
     private(set) var controller: SPUStandardUpdaterController?
+    private var started = false
     var available: Bool { controller != nil }
     var automaticallyChecks: Bool {
         get { controller?.updater.automaticallyChecksForUpdates ?? false }
@@ -19,19 +20,25 @@ final class Updates: NSObject, NSMenuItemValidation {
     init(disabled: Bool) {
         super.init()
         guard !disabled, Bundle.main.object(forInfoDictionaryKey: "LeanTermReleaseBuild") as? Bool == true else { return }
-        let updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+        controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+    }
+
+    /// Starts Sparkle once, off the launch path; the menu item and settings exist before this runs.
+    func start() {
+        guard let updater = controller?.updater, !started else { return }
+        started = true
         do {
-            try updater.updater.start()
-            controller = updater
-            if updater.updater.automaticallyChecksForUpdates {
-                updater.updater.checkForUpdatesInBackground()
-            }
+            try updater.start()
+            if updater.automaticallyChecksForUpdates { updater.checkForUpdatesInBackground() }
         } catch {
             NSLog("Lean Term updater could not start: %@", error.localizedDescription)
         }
     }
 
-    @objc func checkForUpdates(_ sender: Any?) { controller?.checkForUpdates(sender) }
+    @objc func checkForUpdates(_ sender: Any?) {
+        start()
+        controller?.checkForUpdates(sender)
+    }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool { controller?.updater.canCheckForUpdates ?? false }
     func restoreDefaults() {
         automaticallyChecks = true

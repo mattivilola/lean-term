@@ -164,3 +164,7 @@ brings that tab forward. The Dock badge counts tabs with an unseen finished comm
 Host colour rules are stored as JSON in UserDefaults, none by default. Each is matched with
 `fnmatch` (case-insensitive) against the remote host, OSC 7 host first, and colours the tab
 symbol and draws a steady scanner line while the session is remote.
+
+## Launch path
+
+Sparkle's updater controller is created at launch so the menu item and settings exist, but the updater starts (and its first background check runs) once, five seconds after launch, or earlier if Check for Updates is chosen. Workspace restore opens every saved window with its selected tab immediately and adds the remaining tabs one per run-loop turn at their saved positions, starting each shell as its tab is created.

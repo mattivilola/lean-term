@@ -85,6 +85,7 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--settle", type=float, default=5, help="seconds to wait before idle sampling")
     parser.add_argument("--only-tabs", type=int, help="run only this idle trial (skips launch trials and the other tab count)")
+    parser.add_argument("--launch-only", action="store_true", help="run only the launch trials")
     args = parser.parse_args()
     app, out = args.app.resolve(), args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -97,7 +98,7 @@ def main():
         quit_app(run["pid"])
         launches.append(run["seconds"])
     idle = {tabs: idle_trial(observer, app, out, tabs, args.settle)
-            for tabs in ((args.only_tabs,) if args.only_tabs else (1, 3))}
+            for tabs in (() if args.launch_only else (args.only_tabs,) if args.only_tabs else (1, 3))}
 
     leftovers = []
     for path in sorted(glob.glob(os.path.expanduser("~/Library/Preferences/LeanTerm.Bench.*.plist"))):
