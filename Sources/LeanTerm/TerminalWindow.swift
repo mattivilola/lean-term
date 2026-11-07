@@ -361,6 +361,38 @@ extension TerminalWindow {
         window?.makeFirstResponder(new.terminal)
     }
 
+    /// The tab as saved in a workspace: its split layout (nil for one pane) and the focused pane's index.
+    /// Zoom is not saved.
+    var workspaceTab: SessionTab {
+        let focused = panes.firstIndex { $0 === focusedPane } ?? 0
+        guard panes.count > 1 else { return SessionTab(directory: directoryForNewSession, customName: customName) }
+        let directories = Dictionary(uniqueKeysWithValues: panes.map { ($0.id, $0.directoryForNewSession) })
+        return SessionTab(directory: directoryForNewSession, customName: customName,
+                          layout: SavedPaneLayout(layout, directories: directories, fallback: directoryForNewSession),
+                          focusedPane: focused)
+    }
+
+    /// Rebuilds a saved arrangement in a freshly created single-pane tab: the first pane stays, one
+    /// new pane starts per further leaf, and the saved pane gets first responder (which does not make
+    /// the window key). Dividers are placed now and again once the window has settled.
+    func restore(layout saved: SavedPaneLayout, focused: Int) {
+        let directories = saved.directories
+        guard panes.count == 1, directories.count > 1 else { return }
+        let added = directories.dropFirst().map { makePane(directory: $0) }
+        let restored = saved.paneLayout(ids: [focusedPane.id] + added.map(\.id))
+        layout = restored
+        panes += added
+        syncPanes()
+        rebuildLayout()
+        for pane in added { pane.start(smoke: smokeMode) }
+        if panes.indices.contains(focused) { window?.makeFirstResponder(panes[focused].terminal) }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !isZoomed, layout.paneIDs == restored.paneIDs else { return }
+            layout = restored
+            applyRatios()
+        }
+    }
+
     /// Takes a pane out of the arrangement once its shell is gone. Its sibling inherits focus.
     private func removePane(_ pane: TerminalPane) {
         guard panes.count > 1, let remaining = layout.removing(pane.id) else { return }

@@ -14,11 +14,18 @@ directory for a new shell.
 
 Optional workspace reopening stores one versioned, bounded UserDefaults value:
 ordered window groups, ordered local folders/custom names, selected tabs and
-the active group. Confirmed quit saves it before shell shutdown removes windows;
+the active group. Format version 2 adds each tab's split layout (`SavedPaneLayout`:
+the pane tree with axes, divider ratios and a folder per leaf, plus the focused
+pane's index); `SessionTab.directory` stays the focused pane's folder. Version 1
+workspaces still load as single panes, and a missing or corrupt layout falls back
+to one pane in `directory`. At most 16 panes per tab are restored. Confirmed quit saves it before shell shutdown removes windows;
 Cancel leaves it alone. Empty workspaces clear the value, so manually closed
 tabs are not resurrected. Disabling restoration or resetting settings clears it.
 Launch restores fresh shells with explicit native tab grouping; missing folders
-fall back to home. Existing last-window geometry is reused; commands, output,
+fall back to home. Each tab's split tree is rebuilt in the same step that creates
+the tab (`TerminalWindow.restore(layout:focused:)`, reusing the normal pane
+creation), the saved pane takes first responder without making the window key, and
+divider ratios are applied again on the next run-loop turn once layout has settled. Existing last-window geometry is reused; commands, output,
 remote connections and per-group geometry are not serialized.
 
 Lean Term uses Swift and AppKit around SwiftTerm's existing local-process terminal
@@ -269,5 +276,6 @@ the focused pane's current folder.
 File › Close closes the focused pane when a tab has several (with a confirmation if
 its shell is live) and otherwise the tab as before; the window's close button always
 closes the whole tab. A pane whose shell exits closes itself under the close-on-exit
-preference, and the last pane closes the tab. Workspace saving still records one
-folder per tab, taken from the focused pane.
+preference, and the last pane closes the tab. Workspace saving records each tab's
+layout (shape, axes, ratios, every pane's folder, focused pane) so reopening on
+launch restores the splits with fresh shells; zoom is not persisted.

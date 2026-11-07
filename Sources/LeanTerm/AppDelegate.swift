@@ -242,9 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             visited.formUnion(members.map(\.id))
             let selected = members.firstIndex { $0.window === window.tabGroup?.selectedWindow } ?? 0
             if members.contains(where: { $0.id == activeID }) { activeGroup = groups.count }
-            groups.append(SessionWindowGroup(tabs: members.map {
-                SessionTab(directory: $0.directoryForNewSession, customName: $0.customName)
-            }, selectedTab: selected))
+            groups.append(SessionWindowGroup(tabs: members.map(\.workspaceTab), selectedTab: selected))
         }
         return SessionWorkspace(groups: groups, activeGroup: activeGroup)
     }
@@ -266,9 +264,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         func selectedIndex(_ group: SessionWindowGroup) -> Int { group.tabs.indices.contains(group.selectedTab) ? group.selectedTab : 0 }
         func create(_ group: Int, _ tab: Int, tabOf: TerminalWindow?, order: NSWindow.OrderingMode = .above, present: Bool = true) {
             let saved = saved.groups[group].tabs[tab]
-            guard let session = newTerminal(directory: saved.directory, tabOf: tabOf, tabOrder: order, smoke: smoke,
+            let first = saved.layout?.directories.first ?? saved.directory
+            guard let session = newTerminal(directory: first, tabOf: tabOf, tabOrder: order, smoke: smoke,
                                             separateWindow: tabOf == nil, present: present) else { return }
             session.setCustomName(saved.customName)
+            if let layout = saved.layout { session.restore(layout: layout, focused: saved.focusedPane) }
             restored[group][tab] = session
         }
         for (index, group) in saved.groups.enumerated() {
