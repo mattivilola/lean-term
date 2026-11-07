@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Holding ⌘ over a clickable path shows an animated phosphor highlight and a hint of what a click will do.
+
 ## 0.5.1 — Split panes and command palette
 
 - Split panes: Terminal › Split Right (⌘D) and Split Down (⇧⌘D), ⌥⌘arrows to move between panes, ⇧⌘↩ to zoom one and ⌃⌘= to equalise; ⌘W closes the focused pane, and inactive panes dim slightly (Settings › Appearance).
