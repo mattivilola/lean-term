@@ -31,7 +31,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     private let automaticDownloads = NSButton(checkboxWithTitle: "Download updates in the background", target: nil, action: nil)
-    private let sections = NSSegmentedControl(labels: ["Appearance", "Behavior", "Updates", "Hosts"], trackingMode: .selectOne, target: nil, action: nil)
+    private let sections = NSSegmentedControl(labels: ["Appearance", "General", "Terminal", "Activity", "Hosts", "Updates"], trackingMode: .selectOne, target: nil, action: nil)
     private let hosts = NSTableView()
     private let hostEdit = NSSegmentedControl(images: [NSImage(named: NSImage.addTemplateName) ?? NSImage(),
                                                          NSImage(named: NSImage.removeTemplateName) ?? NSImage()],
@@ -39,11 +39,14 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     /// The rules the table currently shows, so refresh() only reloads for outside changes.
     private var shownRules: [HostColorRule] = []
     private var pages: [NSView] = []
+    private var pageHeight: NSLayoutConstraint?
+    private var scrollHeight: NSLayoutConstraint?
+    /// Height of the window outside the scrolling page area.
+    private static let chromeHeight: CGFloat = 222
 
     init(app: AppDelegate) {
         self.app = app
-        let height = min(780, (NSScreen.main?.visibleFrame.height ?? 860) - 80)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: height),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 600),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -114,18 +117,22 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let shellIntegration = Self.vertical([
             Self.note("Prompt navigation (⌘↑/⌘↓) and Select Command Output need your shell to mark prompts (OSC 133)."),
             howToIntegrate], spacing: 7)
-        let behaviorPage = Self.grid([
+        let generalPage = Self.grid([
+            [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Keyboard"), keyboard],
+            [NSTextField(labelWithString: "Status bar"), monitoring],
+            [NSTextField(labelWithString: "Default terminal"), defaultTerminal]
+        ])
+        let terminalPage = Self.grid([
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
             [NSTextField(labelWithString: "Copying"), Self.vertical([redactCopies,
                 Self.note("Masks passwords, API keys, tokens, private keys, card numbers, IBANs, personal identity numbers and email addresses as [REMOVED:…]. ⌥⌘C always copies without them.")], spacing: 7)],
             [NSTextField(labelWithString: "Open files with"), openFiles],
-            [NSTextField(labelWithString: "Shell integration"), shellIntegration],
-            [NSTextField(labelWithString: "Sessions"), sessions],
-            [NSTextField(labelWithString: "Status bar"), monitoring],
+            [NSTextField(labelWithString: "Shell integration"), shellIntegration]
+        ])
+        let activityPage = Self.grid([
             [NSTextField(labelWithString: "Activity"), activity],
-            [NSTextField(labelWithString: "Notifications"), notifying],
-            [NSTextField(labelWithString: "Default terminal"), defaultTerminal]
+            [NSTextField(labelWithString: "Notifications"), notifying]
         ])
         let updatesPage: NSView
         if app.updates.available {
@@ -139,7 +146,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         }
 
         let hostsPage = makeHostsPage()
-        pages = [appearancePage, behaviorPage, updatesPage, hostsPage]
+        pages = [appearancePage, generalPage, terminalPage, activityPage, hostsPage, updatesPage]
         let pageContainer = SettingsDocument()
         pageContainer.translatesAutoresizingMaskIntoConstraints = false
         let scroll = NSScrollView()
@@ -158,10 +165,12 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             ])
         }
         NSLayoutConstraint.activate([
-            pageContainer.heightAnchor.constraint(equalToConstant: 700),
-            pageContainer.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-            scroll.heightAnchor.constraint(equalToConstant: height - 222)
+            pageContainer.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
         ])
+        let pageHeight = pageContainer.heightAnchor.constraint(equalToConstant: 0)
+        let scrollHeight = scroll.heightAnchor.constraint(equalToConstant: 0)
+        NSLayoutConstraint.activate([pageHeight, scrollHeight])
+        self.pageHeight = pageHeight; self.scrollHeight = scrollHeight
         sections.selectedSegment = 0; sections.target = self; sections.action = #selector(sectionChanged)
         let reset = NSButton(title: "Restore Defaults", target: self, action: #selector(resetDefaults))
         reset.bezelStyle = .inline
@@ -178,6 +187,9 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
             bottom.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
+        sections.sizeToFit()
+        window.setContentSize(NSSize(width: max(520, sections.fittingSize.width + 60), height: 600))
+        sectionChanged()
         window.center()
         surface.appearanceChanged = { [weak self] in self?.refresh() }
         refresh()
@@ -307,6 +319,19 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
 
     @objc private func sectionChanged() {
         for (index, page) in pages.enumerated() { page.isHidden = index != sections.selectedSegment }
+        guard pages.indices.contains(sections.selectedSegment) else { return }
+        // Each page sizes to its content; the window follows it until the screen runs out, then the page scrolls.
+        let content = pages[sections.selectedSegment].fittingSize.height
+        let available = (window?.screen ?? NSScreen.main)?.visibleFrame.height ?? 860
+        let visible = min(content, max(200, available - 80 - Self.chromeHeight))
+        pageHeight?.constant = content
+        scrollHeight?.constant = visible
+        guard let window else { return }
+        var frame = window.frame
+        let target = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: window.contentLayoutRect.width, height: visible + Self.chromeHeight)).height
+        frame.origin.y += frame.height - target
+        frame.size.height = target
+        window.setFrame(frame, display: true, animate: window.isVisible)
     }
     func refresh() {
         guard let app else { return }

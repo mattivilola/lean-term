@@ -64,11 +64,11 @@ active, tracked by one Bool so enable/disable stay balanced and release on quit.
 `LeanTerminalView` overrides SwiftTerm's `paste(_:)`, the single entry point for
 ⌘V and Edit › Paste. A multi-line clipboard sent to a program that has not enabled
 bracketed paste first shows a sheet with a short preview; "Don't ask again" and
-Settings › Behavior turn `confirmMultilinePaste` off. Other pastes are untouched.
+Settings › Terminal turn `confirmMultilinePaste` off. Other pastes are untouched.
 
 ## Redacted copy
 
-Opt-in (`redactCopies`, off by default, Edit menu and Settings › Behavior) because it silently changes copied
+Opt-in (`redactCopies`, off by default, Edit menu and Settings › Terminal) because it silently changes copied
 text. `LeanTerminalView` overrides `copy(_:)`: with the preference on, the selection from SwiftTerm's
 `getSelection()` goes through `SensitiveDataRedactor.redact` (Core, pure) in a detached task, and the result is
 written to the general pasteboard as plain text back on the main actor; a copy requested while one is running is
@@ -94,7 +94,7 @@ the hovered row. Fade, underline growth, slide to the next token and the delayed
 transactions plus one cancellable work item; Reduce Motion keeps only fades. The highlight fades out when ⌘ is
 released, the pointer leaves, on click, scroll, losing key status or the pane's coalesced output notification.
 
-Files open with Settings › Behavior › "Open files with": Lean VS Code (default, `lean-code://file<path>:<line>:<col>`;
+Files open with Settings › Terminal › "Open files with": Lean VS Code (default, `lean-code://file<path>:<line>:<col>`;
 falls back to the default app when not installed), the default app, or a chosen app, stored as
 `Preferences.fileOpener`. A folder types `cd -- <escaped path>` when a local shell is at its prompt and otherwise,
 or with ⌘⇧, opens a new tab there.

@@ -65,4 +65,4 @@ snippet, you do not need it, and having both can mark prompts twice.
 ## Check that it works
 
 Run a command or two, then open the **Terminal** menu: Previous Prompt and Next Prompt are enabled
-once Lean Term has seen a prompt mark. Settings › Behavior › Shell integration links to this page.
+once Lean Term has seen a prompt mark. Settings › Terminal › Shell integration links to this page.

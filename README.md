@@ -109,13 +109,13 @@ pinned SwiftTerm checkout. Supported builds go through the script;
 | Shortcut reference and editor | ⌘? |
 | Settings | ⌘, |
 
-Open **Settings → Behavior → Keyboard Shortcuts** or **Help → Keyboard Shortcuts** to
+Open **Settings → General → Keyboard Shortcuts** or **Help → Keyboard Shortcuts** to
 change bindings or restore defaults. Settings save automatically in macOS preferences.
 New tabs use the local shell's current working directory, read directly from macOS.
 No shell hooks are installed. Hover over a tab for its full path; use the pencil
 toolbar button or **Window → Rename Tab** for a custom name.
 
-**Settings → Behavior → Reopen windows and tabs on launch** saves folders, tab
+**Settings → General → Reopen windows and tabs on launch** saves folders, tab
 names, order, window groups and selection on confirmed quit. It is off by default.
 The next launch starts fresh shells in those folders; unavailable folders fall
 back to home. Running commands, SSH connections and terminal output are not
