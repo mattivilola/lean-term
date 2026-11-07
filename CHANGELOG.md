@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- ⌘-click a path in terminal output to open it: files open in Lean VS Code at the clicked line (or the default or a chosen app, Settings › Behavior › Open files with); folders `cd` there at the prompt, ⌘⇧-click opens a new tab.
+- Optional redacted copy: Edit › Remove Sensitive Data When Copying, and Copy Without Sensitive Data (⌥⌘C), mask passwords, keys, tokens, card numbers, IBANs, identity numbers and emails as `[REMOVED:…]`.
+- Drop files or folders on a terminal to insert their escaped paths; Secure Keyboard Entry in the app menu; multi-line pastes into programs without bracketed paste ask first.
+- Open folders, `.command`/`.tool` scripts and `ssh://` links in Lean Term; Finder services New Lean Term Tab/Window Here; Make Lean Term the Default Terminal in Settings.
+- Faster, lighter idle: footer graphs drawn as layers and sampled every 5 s in the background; the updater starts after launch; saved tabs restore in stages without stealing focus.
+- Developer: `benchmarks/perf_snapshot.py` short isolated perf snapshot.
+
 ## 0.4.0 — Tabs that remember
 
 - Short folder names in tabs, full paths on hover, and Rename Tab in the toolbar and Window menu (⇧⌘R). A blank name returns to automatic labels.
