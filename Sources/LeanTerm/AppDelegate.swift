@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     lazy var notifier = BackgroundNotifier(disabled: isolatedDefaultsDomain != nil)
     lazy var updates = Updates(disabled: isolatedDefaultsDomain != nil)
     var activeSession: TerminalWindow? { sessions.values.first { $0.window === NSApp.keyWindow } }
+    /// The key terminal window, or the last one that was key while Lean Term is in the background.
+    var currentSession: TerminalWindow? { activeSession ?? lastActiveSessionID.flatMap { sessions[$0] } }
 
     override init() {
         let benchmark = CommandLine.arguments.contains("--benchmark-session")
@@ -155,9 +157,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         refreshResourceMonitoring()
         return session
     }
-    @objc func newWindow(_ sender: Any?) { newTerminal(directory: activeSession?.directoryForNewSession, separateWindow: true) }
+    @objc func newWindow(_ sender: Any?) { newTerminal(directory: currentSession?.directoryForNewSession, separateWindow: true) }
     @objc func newTab(_ sender: Any?) {
-        let parent = activeSession
+        let parent = currentSession
         newTerminal(directory: parent?.directoryForNewSession, tabOf: parent)
     }
     @objc func selectTab(_ sender: NSMenuItem) {
@@ -328,7 +330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// A tab in the active window, or a new window when none is open.
     func openTerminal(in folder: URL?, command: String? = nil, newWindow: Bool = false) {
         let directory = folder.flatMap { ShellLaunch.localDirectory(from: $0.absoluteString) }
-        let parent = newWindow ? nil : (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })
+        let parent = newWindow ? nil : currentSession
         newTerminal(directory: directory, tabOf: parent, separateWindow: parent == nil, initialCommand: command)
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -347,7 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if terminationPending { return .terminateLater }
         if isBenchmarkSession { return .terminateNow }
         let live = sessions.values.filter(\.live)
-        (activeSession ?? lastActiveSessionID.flatMap { sessions[$0] })?.savePlacement()
+        currentSession?.savePlacement()
         guard !live.isEmpty else { saveWorkspaceForQuit(); return .terminateNow }
         terminationPending = true
         refreshActivityMonitoring()

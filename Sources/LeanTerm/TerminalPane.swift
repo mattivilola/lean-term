@@ -391,8 +391,17 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         }
     }
 
+    /// Until the forked child has exec'd the shell it still reports Lean Term's own working
+    /// directory, so the kernel's answer is trusted only once the shell itself is running.
+    private var shellHasExecuted = false
+    private static let ownProcessName = ProcessInfo.processInfo.processName
+
     func refreshDirectory() {
-        if didStart, let process = terminal.process, process.running,
+        if didStart, let process = terminal.process, process.running, !shellHasExecuted,
+           let name = ForegroundProcessReader.read(groupLeader: process.shellPid)?.name, name != Self.ownProcessName {
+            shellHasExecuted = true
+        }
+        if shellHasExecuted, let process = terminal.process, process.running,
            let path = ForegroundProcessReader.workingDirectory(of: process.shellPid), path != currentDirectory {
             currentDirectory = path
             host?.paneDidChangeDirectory(self)
