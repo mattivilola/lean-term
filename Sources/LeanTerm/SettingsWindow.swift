@@ -15,6 +15,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
+    private let fileOpener = NSPopUpButton()
+    private let getLeanVSCode = NSButton(title: "Get Lean VS Code…", target: nil, action: nil)
     private let makeDefault = NSButton(title: "Make Lean Term the Default Terminal", target: nil, action: nil)
     private let defaultStatus = NSTextField(labelWithString: "")
     private let restore = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
@@ -98,9 +100,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         defaultStatus.font = .systemFont(ofSize: 11); defaultStatus.textColor = .secondaryLabelColor
         let defaultTerminal = Self.vertical([makeDefault, defaultStatus,
             Self.note("Finder: right-click a folder › Services › New Lean Term Tab Here (enable it in System Settings › Keyboard › Keyboard Shortcuts › Services if missing). Lean VS Code: set \"terminal.external.osxExec\" to \"Lean Term.app\".")], spacing: 7)
+        fileOpener.target = self; fileOpener.action = #selector(fileOpenerChosen)
+        fileOpener.setAccessibilityLabel("Open files with")
+        getLeanVSCode.target = self; getLeanVSCode.action = #selector(openLeanVSCodeSite)
+        getLeanVSCode.bezelStyle = .inline; getLeanVSCode.controlSize = .small
+        let openFiles = Self.vertical([NSStackView(views: [fileOpener, getLeanVSCode]),
+            Self.note("⌘-click a path in the terminal to open it; ⌘-click a folder to cd there, ⌘⇧-click for a new tab.")], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
+            [NSTextField(labelWithString: "Open files with"), openFiles],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
             [NSTextField(labelWithString: "Activity"), activity],
@@ -309,6 +318,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         if value.hostColorRules != shownRules, hosts.editedRow < 0 { reloadHosts(value.hostColorRules) }
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
+        refreshFileOpener(value.fileOpener)
         refreshDefaultTerminal()
         let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = TerminalTheme(palette: value.palette, dark: dark)
@@ -338,6 +348,47 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.notifyInBackground = notifications.state == .on
         app.updatePreferences(value)
     }
+    private static let leanVSCodeTag = 0, systemTag = 1, appTag = 2, otherTag = 3
+
+    /// Rebuilds the popup from the saved choice, since the installed state and the chosen app's name can change.
+    private func refreshFileOpener(_ choice: Preferences.FileOpenerChoice) {
+        let installed = FileOpener.leanVSCodeURL != nil
+        fileOpener.removeAllItems()
+        for (title, tag) in [(installed ? "Lean VS Code (recommended)" : "Lean VS Code (not installed)", Self.leanVSCodeTag),
+                             ("Default app for the file type", Self.systemTag)] {
+            fileOpener.addItem(withTitle: title); fileOpener.lastItem?.tag = tag
+        }
+        if case .app(let identifier) = choice {
+            let name = FileOpener.applicationURL(for: identifier).map(FileOpener.displayName(ofApplicationAt:)) ?? identifier
+            fileOpener.addItem(withTitle: name); fileOpener.lastItem?.tag = Self.appTag
+        }
+        fileOpener.addItem(withTitle: "Other app…"); fileOpener.lastItem?.tag = Self.otherTag
+        switch choice {
+        case .leanVSCode: fileOpener.selectItem(withTag: Self.leanVSCodeTag)
+        case .system: fileOpener.selectItem(withTag: Self.systemTag)
+        case .app: fileOpener.selectItem(withTag: Self.appTag)
+        }
+        getLeanVSCode.isHidden = installed
+    }
+    @objc private func fileOpenerChosen() {
+        guard let app else { return }
+        var value = app.preferences
+        switch fileOpener.selectedItem?.tag {
+        case Self.leanVSCodeTag: value.fileOpener = .leanVSCode
+        case Self.systemTag: value.fileOpener = .system
+        case Self.otherTag:
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = [.application]
+            panel.allowsMultipleSelection = false
+            panel.directoryURL = URL(fileURLWithPath: "/Applications")
+            panel.prompt = "Choose"
+            if panel.runModal() == .OK, let url = panel.url { value.fileOpener = .app(FileOpener.identifier(forApplicationAt: url)) }
+        default: return
+        }
+        app.updatePreferences(value)
+        refreshFileOpener(app.preferences.fileOpener)
+    }
+    @objc private func openLeanVSCodeSite() { NSWorkspace.shared.open(FileOpener.leanVSCodeSite) }
     private static let scriptType = UTType("com.apple.terminal.shell-script")
     private static let sshProbe = URL(string: "ssh://example.com")!
 

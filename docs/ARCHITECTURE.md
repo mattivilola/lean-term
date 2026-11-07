@@ -52,6 +52,22 @@ active, tracked by one Bool so enable/disable stay balanced and release on quit.
 bracketed paste first shows a sheet with a short preview; "Don't ask again" and
 Settings › Behavior turn `confirmMultilinePaste` off. Other pastes are untouched.
 
+## Clickable paths
+
+⌘-click opens paths in visible output. Detection is click-time only: `LeanTerminalView.mouseUp` reads the clicked
+row through SwiftTerm's `visibleRowsText`, maps the column to a character (wide characters count two columns) and
+`PathDetection` (Core, pure text) extracts the token with an optional `:line:col`, `(line,col)` or Python
+`, line N` location. Only then does `FileOpener` expand `~`, resolve against the shell's real directory and check
+the file system, also trying the path without a git `a/` or `b/` prefix. Nothing scans output or touches the file
+system while idle; hovering with ⌘ held checks at most once per hovered token and shows the pointing-hand cursor
+for existing paths. URLs and OSC 8 links stay with SwiftTerm; the release reaches SwiftTerm without ⌘ for handled
+paths so its own cwd-relative opening stays out. Remote tabs are excluded (paths live on the other machine).
+
+Files open with Settings › Behavior › "Open files with": Lean VS Code (default, `lean-code://file<path>:<line>:<col>`;
+falls back to the default app when not installed), the default app, or a chosen app, stored as
+`Preferences.fileOpener`. A folder types `cd -- <escaped path>` when a local shell is at its prompt and otherwise,
+or with ⌘⇧, opens a new tab there.
+
 ## macOS integration
 
 Open requests (`application(_:open:)`) turn folders into a tab at that folder, `.command`/`.tool`

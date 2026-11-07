@@ -96,6 +96,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
             value.confirmMultilinePaste = false
             self?.app?.updatePreferences(value)
         }
+        terminal.pathDelegate = self
         terminal.bellStyle = .none
         // This remains the measured CoreGraphics/CoreText implementation.
         do { try terminal.setUseMetal(false) }
@@ -505,6 +506,39 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         let home = NSHomeDirectory()
         if path == home { return "~" }
         return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+}
+
+extension TerminalWindow: TerminalPathDelegate {
+    /// The foreground job, read fresh: the polled value can lag a click by one sample.
+    private func refreshForeground() -> Bool {
+        guard let process = terminal.process, process.running else { return false }
+        let current = tcgetpgrp(process.childfd)
+        let job = current > 0 && current != process.shellPid
+        updateSession(group: job ? current : 0)
+        return job
+    }
+
+    var pathsAreRemote: Bool {
+        _ = refreshForeground()
+        return session.isRemote
+    }
+
+    func resolvePath(_ detected: DetectedPath) -> ResolvedPath? {
+        FileOpener.resolve(detected, relativeTo: directoryForNewSession)
+    }
+
+    func openPath(_ path: ResolvedPath, inNewTab: Bool) {
+        guard path.isDirectory else {
+            FileOpener.open(path, with: preferences.fileOpener)
+            return
+        }
+        // Typing `cd` is only safe when the shell is waiting at its prompt.
+        if !inNewTab, state == .running, !refreshForeground(), !session.isRemote {
+            terminal.send(txt: "\u{15}cd -- " + ShellEscape.path(path.url.path) + "\r")
+        } else {
+            app?.openTerminal(in: path.url)
+        }
     }
 }
 

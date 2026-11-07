@@ -3,6 +3,15 @@ import LeanTermCore
 import SwiftTerm
 import Synchronization
 
+/// Resolves and opens paths that the user ⌘-clicks in terminal output.
+@MainActor
+protocol TerminalPathDelegate: AnyObject {
+    /// Paths in a remote session live on the other machine.
+    var pathsAreRemote: Bool { get }
+    func resolvePath(_ detected: DetectedPath) -> ResolvedPath?
+    func openPath(_ path: ResolvedPath, inNewTab: Bool)
+}
+
 /// Terminal view that reports the bell to the app without making any sound,
 /// accepts dropped files and text, and confirms multi-line pastes.
 final class LeanTerminalView: LocalProcessTerminalView {
@@ -14,9 +23,15 @@ final class LeanTerminalView: LocalProcessTerminalView {
     /// Turns the confirmation preference off after the user ticks "Don't ask again".
     var onDisableMultilinePasteConfirmation: (@MainActor () -> Void)?
     private var pasteConfirmationShowing = false
+    weak var pathDelegate: TerminalPathDelegate?
+    private var pressPoint: NSPoint?
+    /// The hovered token whose existence was already checked, so each token costs one file-system check.
+    private var hoverCheck: (path: DetectedPath, row: Int, exists: Bool)?
+    private var handCursorShown = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if window == nil { removeHoverMonitors() } else { installHoverMonitor() }
         registerForDraggedTypes([.fileURL, .string])
     }
 
@@ -104,5 +119,127 @@ final class LeanTerminalView: LocalProcessTerminalView {
                 if response == .alertFirstButtonReturn { proceed() }
             }
         }
+    }
+
+    // MARK: Clickable paths
+
+    override func mouseDown(with event: NSEvent) {
+        pressPoint = event.locationInWindow
+        super.mouseDown(with: event)
+    }
+
+    /// ⌘-click on an existing path opens it. URLs and OSC 8 links stay with SwiftTerm. SwiftTerm still gets the
+    /// release (selection and press bookkeeping), but without ⌘ so its own cwd-relative path opening stays out.
+    override func mouseUp(with event: NSEvent) {
+        defer { pressPoint = nil }
+        guard event.modifierFlags.contains(.command), let pathDelegate, event.clickCount == 1,
+              let press = pressPoint, hypot(event.locationInWindow.x - press.x, event.locationInWindow.y - press.y) < 4,
+              let detected = detectedPath(atWindowPoint: event.locationInWindow) else {
+            super.mouseUp(with: event)
+            return
+        }
+        if pathDelegate.pathsAreRemote {
+            // Remote paths live on the other machine: keep SwiftTerm from opening a local file of the same
+            // relative name, but leave link-like tokens (OSC 8 text such as "example.com") to SwiftTerm.
+            super.mouseUp(with: detected.path.contains("/") ? Self.withoutCommand(event) : event)
+        } else if let resolved = pathDelegate.resolvePath(detected) {
+            super.mouseUp(with: Self.withoutCommand(event))
+            pathDelegate.openPath(resolved, inNewTab: event.modifierFlags.contains(.shift))
+        } else {
+            super.mouseUp(with: event)
+        }
+    }
+
+    // SwiftTerm's mouseMoved and flagsChanged are not open, so hover feedback listens through local monitors.
+    // The flags monitor is a closure that returns at once without ⌘; the mouse monitor exists only while ⌘ is down.
+    private var flagsMonitor: Any?
+    private var moveMonitor: Any?
+
+    private func installHoverMonitor() {
+        guard flagsMonitor == nil else { return }
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            MainActor.assumeIsolated { self?.commandChanged(event.modifierFlags.contains(.command)) }
+            return event
+        }
+    }
+
+    private func removeHoverMonitors() {
+        for monitor in [flagsMonitor, moveMonitor] { if let monitor { NSEvent.removeMonitor(monitor) } }
+        flagsMonitor = nil; moveMonitor = nil
+        hoverCheck = nil
+    }
+
+    private func commandChanged(_ command: Bool) {
+        guard let window, window.isKeyWindow else { return }
+        if command, moveMonitor == nil {
+            moveMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+                MainActor.assumeIsolated {
+                    if let self, event.window === self.window {
+                        self.updateHoverCursor(command: true, windowPoint: event.locationInWindow)
+                    }
+                }
+                return event
+            }
+        } else if !command {
+            if let moveMonitor { NSEvent.removeMonitor(moveMonitor) }
+            moveMonitor = nil
+            hoverCheck = nil
+        }
+        updateHoverCursor(command: command, windowPoint: window.mouseLocationOutsideOfEventStream)
+    }
+
+    /// Pointing hand over an existing path while ⌘ is held. Does nothing without ⌘.
+    private func updateHoverCursor(command: Bool, windowPoint: NSPoint) {
+        guard command, let pathDelegate, !pathDelegate.pathsAreRemote,
+              let (detected, row) = detectedPathAndRow(atWindowPoint: windowPoint) else {
+            if handCursorShown { handCursorShown = false; NSCursor.iBeam.set() }
+            return
+        }
+        if hoverCheck?.path != detected || hoverCheck?.row != row {
+            hoverCheck = (detected, row, pathDelegate.resolvePath(detected) != nil)
+        }
+        if hoverCheck?.exists == true {
+            handCursorShown = true
+            NSCursor.pointingHand.set()
+        } else if handCursorShown {
+            handCursorShown = false
+            NSCursor.iBeam.set()
+        }
+    }
+
+    private func detectedPath(atWindowPoint point: NSPoint) -> DetectedPath? {
+        detectedPathAndRow(atWindowPoint: point)?.0
+    }
+
+    private func detectedPathAndRow(atWindowPoint windowPoint: NSPoint) -> (DetectedPath, Int)? {
+        guard let cell = gridCell(atWindowPoint: windowPoint),
+              let text = visibleRowsText(cell.row..<(cell.row + 1)).first else { return nil }
+        let offset = PathDetection.characterOffset(ofColumn: cell.col, in: text)
+        guard let detected = PathDetection.path(in: text, at: offset) else { return nil }
+        return (detected, cell.row)
+    }
+
+    /// The screen cell under a window point, using the same cell metrics SwiftTerm lays out with.
+    private func gridCell(atWindowPoint windowPoint: NSPoint) -> (col: Int, row: Int)? {
+        let point = convert(windowPoint, from: nil)
+        guard bounds.contains(point), let dimensions = terminalInputStateSnapshot()?.dimensions,
+              dimensions.cols > 0, dimensions.rows > 0 else { return nil }
+        var character: UniChar = 0x57
+        var glyph: CGGlyph = 0
+        guard CTFontGetGlyphsForCharacters(font, &character, &glyph, 1) else { return nil }
+        let scale = window?.backingScaleFactor ?? 1
+        let cellWidth = max(1, (font.advancement(forGlyph: NSGlyph(glyph)).width * scale).rounded() / scale)
+        let cellHeight = getOptimalFrameSize().height / CGFloat(dimensions.rows)
+        guard cellHeight > 0 else { return nil }
+        let col = min(max(0, Int(point.x / cellWidth)), dimensions.cols - 1)
+        let row = min(max(0, Int((frame.height - point.y) / cellHeight)), dimensions.rows - 1)
+        return (col, row)
+    }
+
+    private static func withoutCommand(_ event: NSEvent) -> NSEvent {
+        NSEvent.mouseEvent(with: event.type, location: event.locationInWindow,
+                           modifierFlags: event.modifierFlags.subtracting(.command), timestamp: event.timestamp,
+                           windowNumber: event.windowNumber, context: nil, eventNumber: event.eventNumber,
+                           clickCount: event.clickCount, pressure: event.pressure) ?? event
     }
 }

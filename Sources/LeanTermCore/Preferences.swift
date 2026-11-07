@@ -30,6 +30,32 @@ public struct Preferences: Equatable, Sendable {
         public var title: String { rawValue.capitalized }
     }
 
+    /// What ⌘-click opens files with.
+    public enum FileOpenerChoice: Equatable, Sendable, RawRepresentable {
+        case leanVSCode
+        case system
+        /// An application's bundle identifier, or its path when it has none.
+        case app(String)
+
+        public init?(rawValue: String) {
+            switch rawValue {
+            case "leanVSCode": self = .leanVSCode
+            case "system": self = .system
+            default:
+                guard rawValue.hasPrefix("app:"), rawValue.count > 4 else { return nil }
+                self = .app(String(rawValue.dropFirst(4)))
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+            case .leanVSCode: "leanVSCode"
+            case .system: "system"
+            case .app(let identifier): "app:" + identifier
+            }
+        }
+    }
+
     public var appearance: Appearance = .system
     public var palette: Palette = .forest
     public var fontName = "SF Mono"
@@ -48,6 +74,7 @@ public struct Preferences: Equatable, Sendable {
     public var restoreSessions = false
     public var secureKeyboardEntry = false
     public var confirmMultilinePaste = true
+    public var fileOpener = FileOpenerChoice.leanVSCode
     public static let scrollbackLines = 10_000
 
     public init() {}
@@ -71,6 +98,7 @@ public struct Preferences: Equatable, Sendable {
         restoreSessions = defaults.bool(forKey: "restoreSessions")
         secureKeyboardEntry = defaults.bool(forKey: "secureKeyboardEntry")
         confirmMultilinePaste = defaults.object(forKey: "confirmMultilinePaste") == nil ? true : defaults.bool(forKey: "confirmMultilinePaste")
+        fileOpener = FileOpenerChoice(rawValue: defaults.string(forKey: "fileOpener") ?? "") ?? .leanVSCode
     }
 
     /// The colour of the first rule whose pattern matches the host, case-insensitively. Empty patterns are ignored.
@@ -88,7 +116,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "fileOpener", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -111,5 +139,6 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(restoreSessions, forKey: "restoreSessions")
         defaults.set(secureKeyboardEntry, forKey: "secureKeyboardEntry")
         defaults.set(confirmMultilinePaste, forKey: "confirmMultilinePaste")
+        defaults.set(fileOpener.rawValue, forKey: "fileOpener")
     }
 }

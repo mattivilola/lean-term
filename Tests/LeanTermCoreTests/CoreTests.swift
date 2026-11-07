@@ -38,7 +38,7 @@ import Testing
     var value = Preferences()
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.fileOpener = .app("com.apple.TextEdit")
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }
@@ -171,4 +171,28 @@ import Testing
                 "ssh://user:pw@host", "ssh://host/path", "ssh://host?x=1", "ssh://ho%20st", "ssh://a@b@host", "ssh://[abc]", "https://host"] {
         #expect(command(bad) == nil, "\(bad)")
     }
+}
+
+@Test func pathDetectionFindsPathsWithLocationsAroundAColumn() {
+    func detect(_ line: String, _ marker: String) -> DetectedPath? {
+        let offset = line.distance(from: line.startIndex, to: line.range(of: marker)!.lowerBound)
+        return PathDetection.path(in: line, at: offset)
+    }
+    #expect(detect("error: /Users/me/ab.swift:12:5: oops", "Users") == DetectedPath(path: "/Users/me/ab.swift", line: 12, column: 5))
+    #expect(detect("see Sources/App/main.swift:12:5: error", "main") == DetectedPath(path: "Sources/App/main.swift", line: 12, column: 5))
+    #expect(detect("at (./lib/x.ts:7)", "lib") == DetectedPath(path: "./lib/x.ts", line: 7, column: nil))
+    #expect(detect("'../up/file.c'.", "file") == DetectedPath(path: "../up/file.c", line: nil, column: nil))
+    #expect(detect("open ~/notes.md,", "notes") == DetectedPath(path: "~/notes.md", line: nil, column: nil))
+    #expect(detect("Foo.java(12,5) failed", "Foo") == DetectedPath(path: "Foo.java", line: 12, column: 5))
+    #expect(detect("  File \"/tmp/t.py\", line 12, in <module>", "tmp") == DetectedPath(path: "/tmp/t.py", line: 12, column: nil))
+    #expect(detect("diff --git a/src/x.rs b/src/x.rs", "src/x.rs b") == DetectedPath(path: "a/src/x.rs", line: nil, column: nil))
+    #expect(detect("version 1.2.3 and https://example.com/a/b", "1.2") == nil)
+    #expect(detect("https://example.com/a/b", "example") == nil)
+    #expect(detect("plain words", "words") == nil)
+    #expect(PathDetection.strippingGitPrefix("b/src/x.rs") == "src/x.rs")
+    #expect(PathDetection.strippingGitPrefix("src/x.rs") == nil)
+    // Wide characters occupy two columns but one character.
+    #expect(PathDetection.characterOffset(ofColumn: 5, in: "日本ab") == 3)
+    #expect(PathDetection.characterOffset(ofColumn: 4, in: "日本ab") == 2)
+    #expect(PathDetection.characterOffset(ofColumn: 3, in: "日本ab") == 1)
 }
