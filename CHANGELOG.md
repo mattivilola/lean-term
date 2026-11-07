@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — Mac integration and prompt navigation
 
 - ⌘-click a path in terminal output to open it: files open in Lean VS Code at the clicked line (or the default or a chosen app, Settings › Behavior › Open files with); folders `cd` there at the prompt, ⌘⇧-click opens a new tab.
 - Optional redacted copy: Edit › Remove Sensitive Data When Copying, and Copy Without Sensitive Data (⌥⌘C), mask passwords, keys, tokens, card numbers, IBANs, identity numbers and emails as `[REMOVED:…]`.
