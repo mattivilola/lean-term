@@ -14,6 +14,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
+    private let redactCopies = NSButton(checkboxWithTitle: "Remove sensitive data when copying", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
     private let fileOpener = NSPopUpButton()
     private let getLeanVSCode = NSButton(title: "Get Lean VS Code…", target: nil, action: nil)
@@ -83,7 +84,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
 
-        for button in [option, confirmPaste, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [option, confirmPaste, redactCopies, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -109,6 +110,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
+            [NSTextField(labelWithString: "Copying"), Self.vertical([redactCopies,
+                Self.note("Masks passwords, API keys, tokens, private keys, card numbers, IBANs, personal identity numbers and email addresses as [REMOVED:…]. ⌥⌘C always copies without them.")], spacing: 7)],
             [NSTextField(labelWithString: "Open files with"), openFiles],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
@@ -307,6 +310,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         cursor.selectItem(withTitle: value.cursor.title)
         option.state = value.optionAsMeta ? .on : .off
         confirmPaste.state = value.confirmMultilinePaste ? .on : .off
+        redactCopies.state = value.redactCopies ? .on : .off
         closeOnExit.state = value.closeTabOnShellExit ? .on : .off
         quitAfterLast.state = value.quitAfterLastSession ? .on : .off
         restore.state = value.restoreSessions ? .on : .off
@@ -338,6 +342,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
         value.optionAsMeta = option.state == .on
         value.confirmMultilinePaste = confirmPaste.state == .on
+        value.redactCopies = redactCopies.state == .on
         value.closeTabOnShellExit = closeOnExit.state == .on
         value.quitAfterLastSession = quitAfterLast.state == .on
         value.restoreSessions = restore.state == .on

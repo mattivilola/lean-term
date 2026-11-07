@@ -38,7 +38,7 @@ import Testing
     var value = Preferences()
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.fileOpener = .app("com.apple.TextEdit")
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.fileOpener = .app("com.apple.TextEdit")
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }

@@ -23,6 +23,11 @@ final class LeanTerminalView: LocalProcessTerminalView {
     /// Turns the confirmation preference off after the user ticks "Don't ask again".
     var onDisableMultilinePasteConfirmation: (@MainActor () -> Void)?
     private var pasteConfirmationShowing = false
+    /// Whether every copy masks sensitive data (the opt-in preference); the explicit command always does.
+    var redactsCopies = false
+    /// Called on the main thread with the number of masked items, only when it is above zero.
+    var onCopyRedacted: (@MainActor (Int) -> Void)?
+    private var redactionRunning = false
     weak var pathDelegate: TerminalPathDelegate?
     private var pressPoint: NSPoint?
     /// The hovered token whose existence was already checked, so each token costs one file-system check.
@@ -118,6 +123,33 @@ final class LeanTerminalView: LocalProcessTerminalView {
                 if alert.suppressionButton?.state == .on { self?.onDisableMultilinePasteConfirmation?() }
                 if response == .alertFirstButtonReturn { proceed() }
             }
+        }
+    }
+
+    // MARK: Redacted copy
+
+    override func copy(_ sender: Any) {
+        if redactsCopies { copyRedacted() } else { super.copy(sender) }
+    }
+
+    @objc func copyWithoutSensitiveData(_ sender: Any?) { copyRedacted() }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(copyWithoutSensitiveData(_:)) { return selectionActive }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    /// Redaction runs off the main thread; a copy requested while one is still running is ignored.
+    private func copyRedacted() {
+        guard !redactionRunning, let text = getSelection(), !text.isEmpty else { return }
+        redactionRunning = true
+        Task { @MainActor [weak self] in
+            let result = await Task.detached { SensitiveDataRedactor.redact(text) }.value
+            guard let self else { return }
+            redactionRunning = false
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(result.text, forType: .string)
+            if result.removed > 0 { onCopyRedacted?(result.removed) }
         }
     }
 

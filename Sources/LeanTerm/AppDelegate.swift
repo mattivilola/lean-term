@@ -441,6 +441,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         value.secureKeyboardEntry.toggle()
         updatePreferences(value)
     }
+    @objc private func toggleRedactCopies(_ sender: Any?) {
+        var value = preferences
+        value.redactCopies.toggle()
+        updatePreferences(value)
+    }
     private func refreshActivityMonitoring() {
         // Directory labels also follow PTY activity, without adding an idle timer.
         activityMonitor.enabled = !terminationPending
@@ -471,6 +476,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if menuItem.action == #selector(toggleSecureKeyboardEntry) {
             menuItem.state = preferences.secureKeyboardEntry ? .on : .off
             return !terminationPending
+        }
+        if menuItem.action == #selector(toggleRedactCopies) {
+            menuItem.state = preferences.redactCopies ? .on : .off
+            return true
         }
         if [#selector(nextTab), #selector(previousTab), #selector(selectTab), #selector(renameTab)].contains(menuItem.action) {
             return activeSession != nil && !terminationPending
@@ -523,7 +532,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(edit, "Cut", #selector(NSText.cut(_:)), "x")
         add(edit, "Copy", #selector(NSText.copy(_:)), "c")
         add(edit, "Paste", #selector(NSText.paste(_:)), "v")
+        add(edit, "Copy Without Sensitive Data", #selector(LeanTerminalView.copyWithoutSensitiveData(_:)), shortcut: .copyWithoutSensitiveData)
         add(edit, "Select All", #selector(NSText.selectAll(_:)), "a")
+        edit.addItem(.separator())
+        add(edit, "Remove Sensitive Data When Copying", #selector(toggleRedactCopies), target: self)
         edit.addItem(.separator())
         add(edit, "Find…", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.showFindInterface.rawValue, shortcut: .find)
         add(edit, "Find Next", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.nextMatch.rawValue, shortcut: .findNext)

@@ -52,6 +52,16 @@ active, tracked by one Bool so enable/disable stay balanced and release on quit.
 bracketed paste first shows a sheet with a short preview; "Don't ask again" and
 Settings › Behavior turn `confirmMultilinePaste` off. Other pastes are untouched.
 
+## Redacted copy
+
+Opt-in (`redactCopies`, off by default, Edit menu and Settings › Behavior) because it silently changes copied
+text. `LeanTerminalView` overrides `copy(_:)`: with the preference on, the selection from SwiftTerm's
+`getSelection()` goes through `SensitiveDataRedactor.redact` (Core, pure) in a detached task, and the result is
+written to the general pasteboard as plain text back on the main actor; a copy requested while one is running is
+ignored. Edit › Copy Without Sensitive Data (⌥⌘C, in the shortcut map) always redacts. When items were removed the
+window footer shows "Copied · n sensitive items removed" for 3 s, then restores the previous status text unless
+it changed meanwhile.
+
 ## Clickable paths
 
 ⌘-click opens paths in visible output. Detection is click-time only: `LeanTerminalView.mouseUp` reads the clicked

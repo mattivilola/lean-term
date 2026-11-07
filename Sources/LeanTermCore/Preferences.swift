@@ -74,6 +74,7 @@ public struct Preferences: Equatable, Sendable {
     public var restoreSessions = false
     public var secureKeyboardEntry = false
     public var confirmMultilinePaste = true
+    public var redactCopies = false
     public var fileOpener = FileOpenerChoice.leanVSCode
     public static let scrollbackLines = 10_000
 
@@ -98,6 +99,7 @@ public struct Preferences: Equatable, Sendable {
         restoreSessions = defaults.bool(forKey: "restoreSessions")
         secureKeyboardEntry = defaults.bool(forKey: "secureKeyboardEntry")
         confirmMultilinePaste = defaults.object(forKey: "confirmMultilinePaste") == nil ? true : defaults.bool(forKey: "confirmMultilinePaste")
+        redactCopies = defaults.bool(forKey: "redactCopies")
         fileOpener = FileOpenerChoice(rawValue: defaults.string(forKey: "fileOpener") ?? "") ?? .leanVSCode
     }
 
@@ -116,7 +118,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "fileOpener", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "fileOpener", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -139,6 +141,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(restoreSessions, forKey: "restoreSessions")
         defaults.set(secureKeyboardEntry, forKey: "secureKeyboardEntry")
         defaults.set(confirmMultilinePaste, forKey: "confirmMultilinePaste")
+        defaults.set(redactCopies, forKey: "redactCopies")
         defaults.set(fileOpener.rawValue, forKey: "fileOpener")
     }
 }

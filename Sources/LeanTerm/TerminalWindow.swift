@@ -27,6 +27,9 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
     let terminal: LeanTerminalView
     private let surface = TerminalSurface()
     private let status = NSTextField(labelWithString: "")
+    private var statusBeforeCopyNotice: String?
+    private var activeCopyNotice: String?
+    private var copyNotice: Task<Void, Never>?
     private let dimensions = NSTextField(labelWithString: "")
     let resourceStatus = ResourceStatusView()
     private let scanner = ActivityScannerView()
@@ -91,6 +94,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         installOutputHandler()
         terminal.onBell = { [weak self] in self?.bellRang() }
         terminal.confirmsMultilinePaste = preferences.confirmMultilinePaste
+        terminal.redactsCopies = preferences.redactCopies
+        terminal.onCopyRedacted = { [weak self] removed in self?.showCopyNotice(removed: removed) }
         terminal.onDisableMultilinePasteConfirmation = { [weak self] in
             guard var value = self?.app?.preferences else { return }
             value.confirmMultilinePaste = false
@@ -334,6 +339,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
         terminal.confirmsMultilinePaste = value.confirmMultilinePaste
+        terminal.redactsCopies = value.redactCopies
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
         applyTheme()
     }
@@ -462,6 +468,22 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, LocalProcessTe
         resetActivity()
         status.stringValue = "Couldn’t start the shell"
         restart.isHidden = false
+    }
+
+    /// Shows the redaction result in the footer for 3 s, then restores the previous text unless it changed meanwhile.
+    private func showCopyNotice(removed: Int) {
+        let message = "Copied · \(removed) sensitive item\(removed == 1 ? "" : "s") removed"
+        // A notice still showing keeps the text it replaced; any other current text is the one to restore.
+        if status.stringValue != activeCopyNotice { statusBeforeCopyNotice = status.stringValue }
+        activeCopyNotice = message
+        status.stringValue = message
+        copyNotice?.cancel()
+        copyNotice = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, let self else { return }
+            if status.stringValue == message, let previous = statusBeforeCopyNotice { status.stringValue = previous }
+            activeCopyNotice = nil; statusBeforeCopyNotice = nil
+        }
     }
 
     func clearScreenAndScrollback() {
