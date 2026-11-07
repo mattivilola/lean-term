@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Split panes: Terminal › Split Right (⌘D) and Split Down (⇧⌘D), ⌥⌘arrows to move between panes, ⇧⌘↩ to zoom one and ⌃⌘= to equalise; ⌘W closes the focused pane, and inactive panes dim slightly (Settings › Appearance).
+
 ## 0.5.0 — Mac integration and prompt navigation
 
 - ⌘-click a path in terminal output to open it: files open in Lean VS Code at the clicked line (or the default or a chosen app, Settings › Behavior › Open files with); folders `cd` there at the prompt, ⌘⇧-click opens a new tab.
