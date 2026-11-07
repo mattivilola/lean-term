@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2 — Path hover hints
 
 - Holding ⌘ over a clickable path shows an animated phosphor highlight and a hint of what a click will do.
 

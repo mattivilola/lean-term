@@ -12,7 +12,7 @@ and a little less distraction. Free and open source.
 
 [Website](https://leanterm.com) · [Build](#build-and-run) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
-**0.5.1** · Apple silicon · macOS 26+.
+**0.5.2** · Apple silicon · macOS 26+.
 [Releases and downloads](https://github.com/mattivilola/lean-term/releases).
 You can also build from source without a signing account.
 
