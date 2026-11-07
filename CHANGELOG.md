@@ -7,6 +7,7 @@
 - Drop files or folders on a terminal to insert their escaped paths; Secure Keyboard Entry in the app menu; multi-line pastes into programs without bracketed paste ask first.
 - Open folders, `.command`/`.tool` scripts and `ssh://` links in Lean Term; Finder services New Lean Term Tab/Window Here; Make Lean Term the Default Terminal in Settings.
 - Faster, lighter idle: footer graphs drawn as layers and sampled every 5 s in the background; the updater starts after launch; saved tabs restore in stages without stealing focus.
+- With shell integration (OSC 133, see docs/SHELL_INTEGRATION.md): Previous/Next Prompt (⌘↑/⌘↓) and Select Command Output (⇧⌘A).
 - Developer: `benchmarks/perf_snapshot.py` short isolated perf snapshot.
 
 ## 0.4.0 — Tabs that remember
