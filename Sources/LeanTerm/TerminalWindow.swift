@@ -7,7 +7,14 @@ import SwiftTerm
 @MainActor
 final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
     typealias State = TerminalPane.State
+    enum Style { case standard, quickTerminal }
     let id = UUID()
+    /// The dedicated dropdown window: a borderless floating panel outside tabs, workspace restore and window placement.
+    let isQuickTerminal: Bool
+    /// Bumped by every quick-terminal show or hide so a superseded animation's completion does nothing.
+    var quickTerminalGeneration = 0
+    var quickTerminalHiding = false
+    private var quickBorder: NSView?
     private(set) var panes: [TerminalPane]
     private(set) var focusedPane: TerminalPane
     /// The split arrangement of `panes`; while zoomed the focused pane alone fills `paneArea`.
@@ -49,15 +56,18 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         return window.tabGroup?.selectedWindow == nil || window.tabGroup?.selectedWindow === window
     }
 
-    init(preferences: Preferences, directory: String? = nil) {
+    init(preferences: Preferences, directory: String? = nil, style: Style = .standard) {
         self.preferences = preferences
+        isQuickTerminal = style == .quickTerminal
         let pane = TerminalPane(preferences: preferences, directory: directory)
         panes = [pane]
         focusedPane = pane
         layout = .pane(pane.id)
         let rect = pane.terminal.getOptimalFrameSize()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: rect.width + 28, height: rect.height + 46),
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        let contentRect = NSRect(x: 0, y: 0, width: rect.width + 28, height: rect.height + 46)
+        let window: NSWindow = style == .quickTerminal
+            ? QuickTerminalPanel(contentRect: contentRect, styleMask: [.borderless, .closable], backing: .buffered, defer: false)
+            : NSWindow(contentRect: contentRect, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init(window: window)
         pane.host = self
         window.delegate = self
@@ -71,8 +81,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         }
         window.title = "Lean Term"
         window.tabbingIdentifier = "LeanTerm.Terminal"
-        window.tabbingMode = .automatic
-        window.minSize = NSSize(width: 480, height: 300)
+        window.tabbingMode = style == .quickTerminal ? .disallowed : .automatic
+        window.minSize = style == .quickTerminal ? NSSize(width: 320, height: 160) : NSSize(width: 480, height: 300)
         window.isReleasedWhenClosed = false
         window.contentView = surface
         paneArea.translatesAutoresizingMaskIntoConstraints = false
@@ -101,11 +111,29 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
             footer.bottomAnchor.constraint(equalTo: surface.bottomAnchor, constant: -7),
             footer.heightAnchor.constraint(equalToConstant: 18)
         ])
-        let toolbar = NSToolbar(identifier: "TerminalToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconOnly
-        window.toolbar = toolbar
-        window.toolbarStyle = .unifiedCompact
+        if style == .quickTerminal {
+            window.level = .floating
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            window.hasShadow = true
+            window.isMovable = false
+            let border = NSView()
+            border.wantsLayer = true
+            border.translatesAutoresizingMaskIntoConstraints = false
+            surface.addSubview(border)
+            NSLayoutConstraint.activate([
+                border.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
+                border.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
+                border.bottomAnchor.constraint(equalTo: surface.bottomAnchor),
+                border.heightAnchor.constraint(equalToConstant: 1)
+            ])
+            quickBorder = border
+        } else {
+            let toolbar = NSToolbar(identifier: "TerminalToolbar")
+            toolbar.delegate = self
+            toolbar.displayMode = .iconOnly
+            window.toolbar = toolbar
+            window.toolbarStyle = .unifiedCompact
+        }
         surface.wantsLayer = true
         surface.appearanceChanged = { [weak self] in self?.applyTheme() }
         rebuildLayout()
@@ -113,7 +141,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         updateSubtitle()
         surface.layoutSubtreeIfNeeded()
         status.stringValue = pane.statusText
-        window.center()
+        if style == .standard { window.center() }
     }
 
     /// Register the controller with the app before a shell can synchronously exit.
@@ -216,6 +244,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
+        quickBorder?.layer?.backgroundColor = theme.phosphor.withAlphaComponent(0.35).cgColor
         tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber)
         for pane in panes { pane.applyTheme(theme) }
         for splitView in splitViews { splitView.dividerTint = theme.foreground.withAlphaComponent(0.18) }
@@ -281,7 +310,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     }
 
     @objc private func restartSession() {
-        guard panes.count > 1 else {
+        guard panes.count > 1 || isQuickTerminal else {
             app?.newTerminal(directory: directoryForNewSession)
             window?.close()
             return
@@ -627,4 +656,83 @@ extension TerminalWindow: TerminalPaneHost {
     }
     func paneDidTerminate(_ pane: TerminalPane) { app?.sessionDidFinish() }
     func pane(_ pane: TerminalPane, opensTerminalIn folder: URL) { app?.openTerminal(in: folder) }
+}
+
+/// A borderless window that can take key status, so the Quick Terminal accepts typing without a title bar.
+final class QuickTerminalPanel: NSPanel {
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        // NSPanel hides on deactivation by default; the app decides that itself (Settings).
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+    }
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+// MARK: Quick Terminal presentation
+
+extension TerminalWindow {
+    /// The frame the Quick Terminal occupies on `screen`: full width, 40% of the visible height, attached below the menu bar.
+    static func quickTerminalFrame(on screen: NSScreen) -> NSRect {
+        let visible = screen.visibleFrame
+        let height = (visible.height * 0.4).rounded()
+        return NSRect(x: visible.minX, y: visible.maxY - height, width: visible.width, height: height)
+    }
+
+    /// Slides the window down from above the screen edge (or fades in with Reduce Motion) and makes it key.
+    func showQuickTerminal(on screen: NSScreen, completion: @escaping @MainActor () -> Void = {}) {
+        guard let window else { return }
+        quickTerminalGeneration += 1
+        let generation = quickTerminalGeneration
+        let target = Self.quickTerminalFrame(on: screen)
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if window.isVisible && !quickTerminalHiding {
+            window.setFrame(target, display: true)
+        } else if reduceMotion {
+            window.alphaValue = quickTerminalHiding ? window.alphaValue : 0
+            window.setFrame(target, display: true)
+        } else if !quickTerminalHiding {
+            window.alphaValue = 1
+            window.setFrame(target.offsetBy(dx: 0, dy: screen.frame.maxY - target.minY), display: true)
+        }
+        quickTerminalHiding = false
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(terminal)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            if reduceMotion { window.animator().alphaValue = 1 } else { window.animator().setFrame(target, display: true) }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, generation == self.quickTerminalGeneration, let window = self.window else { return }
+                window.alphaValue = 1
+                completion()
+            }
+        })
+    }
+
+    /// Slides the window back up (or fades out) and orders it out. The shell keeps running.
+    func hideQuickTerminal() {
+        guard let window, window.isVisible, !quickTerminalHiding else { return }
+        quickTerminalGeneration += 1
+        let generation = quickTerminalGeneration
+        quickTerminalHiding = true
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let screen = window.screen ?? NSScreen.main
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.14
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            if reduceMotion || screen == nil { window.animator().alphaValue = 0 }
+            else if let screen { window.animator().setFrame(window.frame.offsetBy(dx: 0, dy: screen.frame.maxY - window.frame.minY), display: true) }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, generation == self.quickTerminalGeneration, let window = self.window else { return }
+                self.quickTerminalHiding = false
+                window.orderOut(nil)
+                window.alphaValue = 1
+            }
+        })
+    }
 }

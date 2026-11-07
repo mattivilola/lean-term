@@ -29,6 +29,12 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
     private let notifications = NSButton(checkboxWithTitle: "Show notifications and Dock badge", target: nil, action: nil)
     private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
+    private let quickEnabled = NSButton(checkboxWithTitle: "Show Quick Terminal with", target: nil, action: nil)
+    private let quickHotKey = KeyRecorderButton(idleTitle: QuickTerminalHotKey.default.display)
+    private let quickHotKeyMessage = NSTextField(wrappingLabelWithString: "")
+    /// An explanation of the last rejected recording, shown until the next change.
+    private var rejectedHotKeyMessage: String?
+    private let quickHides = NSButton(checkboxWithTitle: "Hide when Lean Term loses focus", target: nil, action: nil)
     private let preview = NSTextView()
     private let automaticChecks = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     private let automaticDownloads = NSButton(checkboxWithTitle: "Download updates in the background", target: nil, action: nil)
@@ -91,6 +97,19 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let appearancePage = Self.vertical([appearanceGrid, dimInactivePanes, preview], spacing: 22)
 
         for button in [option, confirmPaste, redactCopies, dimInactivePanes, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [quickEnabled, quickHides] { button.target = self; button.action = #selector(changed) }
+        quickHotKey.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
+        quickHotKey.setAccessibilityLabel("Quick Terminal shortcut")
+        quickHotKey.commit = { [weak self] capture in self?.commitHotKey(capture) }
+        quickHotKey.onReject = { [weak self] message in
+            self?.rejectedHotKeyMessage = message
+            self?.refresh()
+        }
+        quickHotKey.onRecordingChanged = { [weak self] recording in self?.app?.setHotKeyRecording(recording) }
+        quickHotKeyMessage.font = .systemFont(ofSize: 11); quickHotKeyMessage.textColor = .systemRed
+        quickHotKeyMessage.widthAnchor.constraint(equalToConstant: 290).isActive = true
+        let quickTerminal = Self.vertical([NSStackView(views: [quickEnabled, quickHotKey]), quickHotKeyMessage, quickHides,
+            Self.note("Slides down from the top of the screen. Its shell keeps running while hidden.")], spacing: 7)
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -126,6 +145,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let generalPage = Self.grid([
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Keyboard"), keyboard],
+            [NSTextField(labelWithString: "Quick Terminal"), quickTerminal],
             [NSTextField(labelWithString: "Status bar"), monitoring],
             [NSTextField(labelWithString: "Default terminal"), defaultTerminal]
         ])
@@ -361,6 +381,13 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         tabActivity.state = value.showTabActivity ? .on : .off
         sessionMarks.state = value.showSessionMarks ? .on : .off
         notifications.state = value.notifyInBackground ? .on : .off
+        quickEnabled.state = value.quickTerminalEnabled ? .on : .off
+        quickHides.state = value.quickTerminalHidesOnDeactivate ? .on : .off
+        quickHotKey.idleTitle = value.quickTerminalHotKey.display
+        quickHotKey.isEnabled = value.quickTerminalEnabled
+        let hotKeyMessage = rejectedHotKeyMessage ?? (value.quickTerminalEnabled ? app.quickTerminalHotKeyError : nil)
+        quickHotKeyMessage.stringValue = hotKeyMessage ?? ""
+        quickHotKeyMessage.isHidden = hotKeyMessage == nil
         if value.hostColorRules != shownRules, hosts.editedRow < 0 { reloadHosts(value.hostColorRules) }
         automaticChecks.state = app.updates.automaticallyChecks ? .on : .off
         automaticDownloads.state = app.updates.automaticallyDownloads ? .on : .off
@@ -395,7 +422,27 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.showTabActivity = tabActivity.state == .on
         value.showSessionMarks = sessionMarks.state == .on
         value.notifyInBackground = notifications.state == .on
+        value.quickTerminalEnabled = quickEnabled.state == .on
+        value.quickTerminalHidesOnDeactivate = quickHides.state == .on
+        rejectedHotKeyMessage = nil
         app.updatePreferences(value)
+        refresh()
+    }
+    /// Applies a recorded global shortcut; returns the reason to reject it. It must be valid and must not shadow one of
+    /// Lean Term's own shortcuts, since the system hot key would take it first.
+    private func commitHotKey(_ capture: KeyCapture) -> String? {
+        guard let app else { return nil }
+        let hotKey = QuickTerminalHotKey(keyCode: UInt32(capture.keyCode), key: capture.key, modifiers: capture.modifiers)
+        guard hotKey.isValid else { return "Include at least two modifiers, such as ⌃⌥⌘. Escape cancels." }
+        let binding = ShortcutBinding(hotKey.key, hotKey.shortcutModifiers)
+        if let action = ShortcutAction.allCases.first(where: { app.shortcuts.binding(for: $0) == binding || $0.aliases.contains(binding) }) {
+            return "\(hotKey.display) is already used by \(action.title)."
+        }
+        rejectedHotKeyMessage = nil
+        var value = app.preferences
+        value.quickTerminalHotKey = hotKey
+        app.updatePreferences(value)
+        return nil
     }
     private static let leanVSCodeTag = 0, systemTag = 1, appTag = 2, otherTag = 3
 

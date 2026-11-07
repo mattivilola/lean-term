@@ -53,6 +53,32 @@ tab/session contents are not restored. `--reset-window` clears only saved window
 geometry; `--reset-settings` also clears the app's visual preferences. Smoke mode
 uses a separate preferences domain for both geometry and visual settings.
 
+## Quick Terminal
+
+A global shortcut (default ⌃⌥⌘T, `QuickTerminalHotKey` in Core: key code, modifiers, at least two modifiers) toggles one
+dedicated `TerminalWindow` created with `Style.quickTerminal`. `GlobalHotKey` registers it with Carbon
+`RegisterEventHotKey`, which needs no Accessibility permission. Carbon calls a non-capturing C callback on the main
+thread; it only hops to the main actor and invokes a static `@MainActor` handler. Registration happens when
+`quickTerminalEnabled` is on (never for isolated smoke or benchmark runs), is replaced when the shortcut changes,
+steps aside while the Settings recorder (`HotKeyRecorderButton`) listens, and is removed on disable and quit. A failed
+registration (combination taken) is kept as `quickTerminalHotKeyError` and shown beside the setting.
+
+The window is a borderless `QuickTerminalPanel` (key-capable `NSPanel`, no toolbar or traffic lights), `tabbingMode =
+.disallowed`, `level = .floating`, `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]`, with the normal
+footer and pane support plus a 1 pt phosphor border (35%) at its bottom edge and the window shadow. It is created on the
+first toggle and its shells keep running while hidden. Pressing the shortcut shows it if hidden or not key and hides it
+if it is key. It spans the screen under the mouse, 40% of the visible height, attached below the menu bar. Showing
+slides it down in 180 ms, hiding slides it up in 140 ms before `orderOut` (`NSAnimationContext` frame animation, size
+constant so the terminal never reflows); Reduce Motion fades instead. A generation counter makes superseded animation
+completions do nothing. With `quickTerminalHidesOnDeactivate` it also hides when the app resigns active or another
+window of the app becomes key (its own sheets, alerts and child palette are ignored, as is the activation that a show
+itself causes).
+
+It is excluded from workspace save/restore, quit-after-last-window, window placement saving, command palette tab
+entries and as a New Tab target (a new tab joins the last ordinary window, though it still inherits the Quick
+Terminal's folder while it is key). Quit confirmation counts its live shells like any session. When its last pane
+closes, the window is released and the next toggle creates a fresh one.
+
 ## Input conveniences
 
 Dropping files or text onto a terminal inserts shell-escaped paths (`ShellEscape`,

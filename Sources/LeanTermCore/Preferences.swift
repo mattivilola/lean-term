@@ -78,6 +78,10 @@ public struct Preferences: Equatable, Sendable {
     /// Slightly dims split panes other than the focused one.
     public var dimInactivePanes = true
     public var fileOpener = FileOpenerChoice.leanVSCode
+    /// The dropdown terminal that a global shortcut toggles.
+    public var quickTerminalEnabled = true
+    public var quickTerminalHotKey = QuickTerminalHotKey.default
+    public var quickTerminalHidesOnDeactivate = true
     /// Lines of history each terminal keeps; always one of `scrollbackChoices`.
     public var scrollbackLines = 10_000
     public static let scrollbackChoices = [1_000, 5_000, 10_000, 50_000, 100_000]
@@ -107,6 +111,11 @@ public struct Preferences: Equatable, Sendable {
         redactCopies = defaults.bool(forKey: "redactCopies")
         dimInactivePanes = defaults.object(forKey: "dimInactivePanes") == nil ? true : defaults.bool(forKey: "dimInactivePanes")
         fileOpener = FileOpenerChoice(rawValue: defaults.string(forKey: "fileOpener") ?? "") ?? .leanVSCode
+        quickTerminalEnabled = defaults.object(forKey: "quickTerminalEnabled") == nil ? true : defaults.bool(forKey: "quickTerminalEnabled")
+        quickTerminalHidesOnDeactivate = defaults.object(forKey: "quickTerminalHidesOnDeactivate") == nil ? true : defaults.bool(forKey: "quickTerminalHidesOnDeactivate")
+        quickTerminalHotKey = defaults.data(forKey: "quickTerminalHotKey")
+            .flatMap { try? JSONDecoder().decode(QuickTerminalHotKey.self, from: $0) }
+            .flatMap { $0.isValid ? $0 : nil } ?? .default
     }
 
     /// The colour of the first rule whose pattern matches the host, case-insensitively. Empty patterns are ignored.
@@ -129,7 +138,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -156,5 +165,8 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(redactCopies, forKey: "redactCopies")
         defaults.set(dimInactivePanes, forKey: "dimInactivePanes")
         defaults.set(fileOpener.rawValue, forKey: "fileOpener")
+        defaults.set(quickTerminalEnabled, forKey: "quickTerminalEnabled")
+        defaults.set(try? JSONEncoder().encode(quickTerminalHotKey), forKey: "quickTerminalHotKey")
+        defaults.set(quickTerminalHidesOnDeactivate, forKey: "quickTerminalHidesOnDeactivate")
     }
 }

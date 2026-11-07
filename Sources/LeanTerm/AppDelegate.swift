@@ -32,6 +32,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// True while saved tabs beyond each window's selected one are still being added.
     private(set) var workspaceRestorePending = false
     var permitsAutomaticSessionClose: Bool { !terminationPending }
+    /// The dropdown terminal; created on first toggle, kept (with its shells) while hidden.
+    private var quickTerminal: TerminalWindow?
+    private let quickTerminalHotKey = GlobalHotKey()
+    /// The combination last handed to the system (nil when none), so unrelated preference changes do not re-register.
+    private var registeredHotKey: QuickTerminalHotKey?
+    /// Why the hot key is not active, shown in Settings; nil when registered or disabled.
+    private(set) var quickTerminalHotKeyError: String?
+    private var hotKeyRecording = false
+    /// Key notifications caused by activating the app for a fresh show must not hide the window again.
+    private var quickTerminalShownAt = Date.distantPast
+    /// True when only the Quick Terminal (or nothing) is left, which does not count as an open window for quitting.
+    private var hasOrdinarySessions: Bool { sessions.values.contains { !$0.isQuickTerminal } }
+    /// The window a new tab joins: the key terminal window, or the last active one; never the Quick Terminal.
+    private var tabParent: TerminalWindow? {
+        if let active = activeSession, !active.isQuickTerminal { return active }
+        return lastActiveSessionID.flatMap { sessions[$0] }.flatMap { $0.isQuickTerminal ? nil : $0 }
+    }
     let metricsMonitor = ProcessMetricsMonitor()
     let activityMonitor = SessionActivityMonitor()
     lazy var notifier = BackgroundNotifier(disabled: isolatedDefaultsDomain != nil)
@@ -84,6 +101,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     self?.refreshResourceMonitoring()
                     self?.refreshSecureInput()
                 }
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: NSApp, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hideQuickTerminalOnDeactivate() }
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] note in
+            let window = note.object as? NSWindow
+            MainActor.assumeIsolated {
+                guard let window else { return }
+                self?.windowBecameKey(window)
             }
         }
         buildMenus()
@@ -160,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func newWindow(_ sender: Any?) { newTerminal(directory: currentSession?.directoryForNewSession, separateWindow: true) }
     @objc func newTab(_ sender: Any?) {
         let parent = currentSession
-        newTerminal(directory: parent?.directoryForNewSession, tabOf: parent)
+        newTerminal(directory: parent?.directoryForNewSession, tabOf: tabParent)
     }
     @objc func selectTab(_ sender: NSMenuItem) {
         guard let current = activeSession?.window else { return }
@@ -201,6 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     func remove(_ session: TerminalWindow) {
         guard sessions.removeValue(forKey: session.id) != nil else { return }
+        if quickTerminal === session { quickTerminal = nil }
         for pane in session.panes { notifier.clear(sessionID: pane.id) }
         unseenActivityChanged()
         sessionDidFinish()
@@ -208,12 +236,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         scheduleLastSessionQuit()
     }
     private func scheduleLastSessionQuit() {
-        guard preferences.quitAfterLastSession, sessions.isEmpty, !terminationPending, !lastSessionQuitQueued else { return }
+        guard preferences.quitAfterLastSession, !hasOrdinarySessions, !terminationPending, !lastSessionQuitQueued else { return }
         lastSessionQuitQueued = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.lastSessionQuitQueued = false
-            guard self.preferences.quitAfterLastSession, self.sessions.isEmpty, !self.terminationPending else { return }
+            guard self.preferences.quitAfterLastSession, !self.hasOrdinarySessions, !self.terminationPending else { return }
             NSApp.terminate(nil)
         }
     }
@@ -224,18 +252,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
     func savePlacement(of session: TerminalWindow) {
-        guard !terminationPending, !isBenchmarkSession, (activeSession?.id ?? lastActiveSessionID) == session.id, let window = session.window,
+        guard !terminationPending, !isBenchmarkSession, !session.isQuickTerminal, (activeSession?.id ?? lastActiveSessionID) == session.id, let window = session.window,
               !window.styleMask.contains(.fullScreen), let placement = WindowPlacement(frame: window.frame) else { return }
         placement.save(to: defaults)
     }
     func recordActiveSession(_ session: TerminalWindow) {
-        if session.window?.isKeyWindow == true { lastActiveSessionID = session.id }
+        if session.window?.isKeyWindow == true, !session.isQuickTerminal { lastActiveSessionID = session.id }
     }
     func workspaceSnapshot() -> SessionWorkspace {
         let owned = Dictionary(uniqueKeysWithValues: sessions.values.compactMap { session in
-            session.window.map { (ObjectIdentifier($0), session) }
+            session.isQuickTerminal ? nil : session.window.map { (ObjectIdentifier($0), session) }
         })
-        let windows = NSApp.orderedWindows + sessions.values.compactMap(\.window).sorted { $0.windowNumber < $1.windowNumber }
+        let windows = NSApp.orderedWindows + sessions.values.filter { !$0.isQuickTerminal }.compactMap(\.window).sorted { $0.windowNumber < $1.windowNumber }
         var visited = Set<UUID>()
         var groups: [SessionWindowGroup] = []
         var activeGroup = 0
@@ -330,7 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// A tab in the active window, or a new window when none is open.
     func openTerminal(in folder: URL?, command: String? = nil, newWindow: Bool = false) {
         let directory = folder.flatMap { ShellLaunch.localDirectory(from: $0.absoluteString) }
-        let parent = newWindow ? nil : currentSession
+        let parent = newWindow ? nil : tabParent
         newTerminal(directory: directory, tabOf: parent, separateWindow: parent == nil, initialCommand: command)
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -340,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationWillTerminate(_ notification: Notification) {
         smokeCheck?.willTerminate()
         setSecureInput(false)
+        quickTerminalHotKey.unregister()
         metricsMonitor.setRunning(false)
         activityMonitor.enabled = false
         if let isolatedDefaultsDomain { defaults.removePersistentDomain(forName: isolatedDefaultsDomain) }
@@ -360,7 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         alert.addButton(withTitle: "Quit Lean Term")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.last?.keyEquivalent = "\r"
-        if let window = NSApp.keyWindow ?? live.first?.window {
+        if let window = NSApp.keyWindow ?? live.compactMap(\.window).first(where: \.isVisible) {
             alert.beginSheetModal(for: window) { [weak self] response in self?.finishQuitConfirmation(response) }
         } else { finishQuitConfirmation(alert.runModal()) }
         return .terminateLater
@@ -402,6 +431,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         value.fontSize = Preferences.validFontSize(value.fontSize)
         value.scrollbackLines = Preferences.validScrollback(value.scrollbackLines)
         guard value != preferences else { return }
+        let previous = preferences
         preferences = value
         if !value.restoreSessions { SessionWorkspace.clear(in: defaults) }
         preferences.save(to: defaults)
@@ -414,6 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             BackgroundNotifier.showDeniedSheet(on: self.settingsWindow?.window)
         }
         unseenActivityChanged()
+        if previous.quickTerminalEnabled != value.quickTerminalEnabled || previous.quickTerminalHotKey != value.quickTerminalHotKey { buildMenus() }
         settingsWindow?.refresh()
     }
     /// The Dock badge counts tabs with an unseen finished command or bell.
@@ -433,6 +464,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         refreshSecureInput()
         refreshResourceMonitoring()
         refreshActivityMonitoring()
+        refreshQuickTerminalHotKey()
+    }
+
+    // MARK: Quick Terminal
+
+    private func refreshQuickTerminalHotKey() {
+        // Isolated smoke and benchmark runs never register a system-wide shortcut.
+        let wanted = preferences.quickTerminalEnabled && isolatedDefaultsDomain == nil && !hotKeyRecording ? preferences.quickTerminalHotKey : nil
+        guard wanted != registeredHotKey else { return }
+        registeredHotKey = wanted
+        quickTerminalHotKey.unregister()
+        quickTerminalHotKeyError = nil
+        guard let wanted else { return }
+        do { try quickTerminalHotKey.register(wanted) { [weak self] in self?.toggleQuickTerminal() } }
+        catch { quickTerminalHotKeyError = error.localizedDescription }
+    }
+    /// While the Settings recorder listens, the registered combination steps aside so pressing it is recorded, not acted on.
+    func setHotKeyRecording(_ recording: Bool) {
+        hotKeyRecording = recording
+        refreshQuickTerminalHotKey()
+        settingsWindow?.refresh()
+    }
+    @objc func toggleQuickTerminal(_ sender: Any? = nil) {
+        guard !terminationPending else { return }
+        if let window = quickTerminal?.window, window.isVisible, window.isKeyWindow, NSApp.isActive {
+            quickTerminal?.hideQuickTerminal()
+            return
+        }
+        let session: TerminalWindow
+        if let quickTerminal { session = quickTerminal }
+        else {
+            let created = TerminalWindow(preferences: preferences, style: .quickTerminal)
+            created.app = self
+            created.activityMonitor = activityMonitor
+            sessions[created.id] = created
+            quickTerminal = created
+            created.start(smoke: isolatedDefaultsDomain != nil)
+            session = created
+        }
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
+        quickTerminalShownAt = Date()
+        session.showQuickTerminal(on: screen) { [weak self, weak session] in
+            // Activating the app may hand key status to another window; the Quick Terminal should end up key.
+            guard let window = session?.window, window.isVisible, !window.isKeyWindow, self?.terminationPending == false else { return }
+            window.makeKeyAndOrderFront(nil)
+        }
+        refreshResourceMonitoring()
+    }
+    private func hideQuickTerminalOnDeactivate() {
+        guard preferences.quickTerminalHidesOnDeactivate else { return }
+        quickTerminal?.hideQuickTerminal()
+    }
+    /// Another Lean Term window taking key status hides the Quick Terminal, except its own sheets, alerts and palette.
+    private func windowBecameKey(_ window: NSWindow) {
+        guard preferences.quickTerminalHidesOnDeactivate, let quick = quickTerminal?.window, quick.isVisible, window !== quick,
+              Date().timeIntervalSince(quickTerminalShownAt) > 0.6,
+              !window.isSheet, window.sheetParent !== quick, window.parent !== quick, NSApp.modalWindow !== window,
+              quick.attachedSheet == nil else { return }
+        quickTerminal?.hideQuickTerminal()
     }
     private func refreshSecureInput() {
         setSecureInput(preferences.secureKeyboardEntry && NSApp.isActive)
@@ -502,7 +593,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             #selector(showCommandPalette), #selector(NSApplication.terminate(_:))
         ], excludedMenus: [NSApp.servicesMenu])
         let windows = NSApp.windows
-        let tabs = sessions.values.compactMap { session -> (Int, TerminalWindow)? in
+        let tabs = sessions.values.filter { !$0.isQuickTerminal }.compactMap { session -> (Int, TerminalWindow)? in
             session.window.flatMap { windows.firstIndex(of: $0) }.map { ($0, session) }
         }.sorted { $0.0 < $1.0 }
         for (_, session) in tabs {
@@ -653,6 +744,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         add(windows, "Show All Tabs", #selector(NSWindow.toggleTabOverview(_:)))
+        windows.addItem(.separator())
+        add(windows, "Quick Terminal", #selector(toggleQuickTerminal(_:)), target: self)
+        // The global shortcut is handled by the system hot key, so it is only labelled here, never bound as a key equivalent.
+        if preferences.quickTerminalEnabled { windows.items.last?.toolTip = "Global shortcut: " + preferences.quickTerminalHotKey.display }
         NSApp.windowsMenu = windows
         let help = group("Help")
         add(help, "Keyboard Shortcuts…", #selector(showShortcuts), target: self, shortcut: .shortcuts)

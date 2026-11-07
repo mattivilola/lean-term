@@ -44,6 +44,8 @@ import Testing
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
+    value.quickTerminalEnabled = false; value.quickTerminalHidesOnDeactivate = false
+    value.quickTerminalHotKey = QuickTerminalHotKey(keyCode: 49, key: " ", modifiers: [.control, .option])
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
 }
@@ -221,4 +223,19 @@ import Testing
     #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 5, visibleRows: 4) == 7...7)
     #expect(CommandOutputLocator.outputRows(roles: [1, 2, 2, 1], viewportTop: 1, visibleRows: 3) == 1...2)
     #expect(CommandOutputLocator.outputRows(roles: [0, 0], viewportTop: 0, visibleRows: 2) == nil)
+}
+
+@Test func quickTerminalHotKeyNeedsTwoModifiersAndDefaultsOnCorruption() throws {
+    #expect(QuickTerminalHotKey.default.isValid)
+    #expect(QuickTerminalHotKey.default.display == "⌃⌥⌘T")
+    #expect(!QuickTerminalHotKey(keyCode: 17, key: "t", modifiers: .command).isValid)
+    #expect(!QuickTerminalHotKey(keyCode: 17, key: "t", modifiers: [.shift]).isValid)
+    #expect(QuickTerminalHotKey(keyCode: 17, key: "t", modifiers: [.shift, .option]).isValid)
+    let name = "LeanTermTests." + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(Preferences(defaults: defaults).quickTerminalEnabled)
+    #expect(Preferences(defaults: defaults).quickTerminalHidesOnDeactivate)
+    defaults.set(try JSONEncoder().encode(QuickTerminalHotKey(keyCode: 17, key: "t", modifiers: .command)), forKey: "quickTerminalHotKey")
+    #expect(Preferences(defaults: defaults).quickTerminalHotKey == .default)
 }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Quick Terminal: ⌃⌥⌘T (configurable in Settings › General) slides a terminal down from the top of the screen over any app or Space; its shell keeps running while hidden.
 - Configurable scrollback in Settings › Terminal (1,000 to 100,000 lines), applied to open tabs immediately.
 - Settings regrouped into Appearance, General, Terminal, Activity, Hosts and Updates pages.
 - New tabs reliably open in the current shell folder, including right after a shell starts and while Lean Term is in the background.

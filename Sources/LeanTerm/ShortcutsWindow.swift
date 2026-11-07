@@ -51,12 +51,8 @@ final class ShortcutsWindow: NSWindowController, NSWindowDelegate {
     private weak var app: AppDelegate?
     private let actions = ShortcutAction.allCases
     private var labels: [ShortcutAction: NSTextField] = [:]
-    private var buttons: [ShortcutAction: NSButton] = [:]
+    private var buttons: [ShortcutAction: KeyRecorderButton] = [:]
     private let status = NSTextField(wrappingLabelWithString: "Click Change, then press a shortcut containing ⌘. Escape cancels.")
-    private var recording: ShortcutAction?
-    private var releaseKey: UInt16?
-    private var monitor: Any?
-    private var deactivation: NSObjectProtocol?
 
     private final class Document: NSView {
         override var isFlipped: Bool { true }
@@ -85,8 +81,14 @@ final class ShortcutsWindow: NSWindowController, NSWindowDelegate {
             shortcut.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
             shortcut.alignment = .right
             shortcut.frame = NSRect(x: 220, y: 8, width: 100, height: 20)
-            let change = NSButton(title: "Change…", target: self, action: #selector(recordShortcut(_:)))
-            change.bezelStyle = .rounded; change.controlSize = .small; change.tag = index
+            let change = KeyRecorderButton(idleTitle: "Change…")
+            change.onBegin = { [weak self] in
+                self?.stopRecording()
+                self?.status.stringValue = "Recording \(action.title). Include ⌘; Escape cancels."
+            }
+            change.commit = { [weak self] capture in self?.commit(capture, for: action) }
+            change.onReject = { [weak self] message in self?.status.stringValue = message }
+            change.onCancel = { [weak self] in self?.status.stringValue = "Shortcut recording cancelled." }
             change.frame = NSRect(x: 335, y: 5, width: 100, height: 26)
             change.setAccessibilityLabel("Change \(action.title) shortcut")
             let reset = NSButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Reset \(action.title)")!,
@@ -123,57 +125,23 @@ final class ShortcutsWindow: NSWindowController, NSWindowDelegate {
         guard let app else { return }
         for action in actions { labels[action]?.stringValue = app.shortcuts.binding(for: action)?.display ?? "—" }
     }
-    @objc private func recordShortcut(_ sender: NSButton) {
-        stopRecording()
-        guard actions.indices.contains(sender.tag) else { return }
-        let action = actions[sender.tag]
-        recording = action
-        buttons[action]?.title = "Press keys…"
-        status.stringValue = "Recording \(action.title). Include ⌘; Escape cancels."
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
-            guard let self, self.recording != nil, self.window?.isKeyWindow == true else { return event }
-            if let eventWindow = event.window, eventWindow !== self.window { return event }
-            return self.capture(event)
-        }
-        deactivation = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
-                                                             object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.stopRecording() }
-        }
-    }
-    private func capture(_ event: NSEvent) -> NSEvent? {
-        if event.type == .keyUp {
-            if releaseKey == event.keyCode { stopRecording() }
-            return nil
-        }
-        if event.isARepeat || releaseKey != nil { return nil }
-        if event.keyCode == 53 {
-            stopRecording()
-            status.stringValue = "Shortcut recording cancelled."
-            return nil
-        }
-        guard let app, let action = recording,
-              let key = event.characters(byApplyingModifiers: []), !key.isEmpty else { return nil }
-        let binding = ShortcutBinding(key, .init(eventFlags: event.modifierFlags))
+    /// Applies a pressed combination to `action`; returns the reason to reject it, or nil once saved.
+    private func commit(_ capture: KeyCapture, for action: ShortcutAction) -> String? {
+        guard let app else { return nil }
+        let binding = ShortcutBinding(capture.key, capture.modifiers)
         do {
             var value = app.shortcuts
             try value.set(binding, for: action)
-            if let other = ShortcutProbe.conflict(event: event, excluding: action) {
-                status.stringValue = "That shortcut is already used by \(other). Try another combination."
-                return nil
+            if let other = ShortcutProbe.conflict(event: capture.event, excluding: action) {
+                return "That shortcut is already used by \(other). Try another combination."
             }
-            // Keep consuming until key-up, so recording Quit/Close cannot invoke it.
-            releaseKey = event.keyCode
             app.updateShortcuts(value)
-            buttons[action]?.title = "Release key…"
             status.stringValue = "Saved \(binding.display) for \(action.title)."
-        } catch { status.stringValue = error.localizedDescription }
-        return nil
+            return nil
+        } catch { return error.localizedDescription }
     }
     private func stopRecording() {
-        if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-        if let deactivation { NotificationCenter.default.removeObserver(deactivation); self.deactivation = nil }
-        if let recording { buttons[recording]?.title = "Change…" }
-        recording = nil; releaseKey = nil
+        for button in buttons.values { button.stopRecording() }
     }
     func windowWillClose(_ notification: Notification) { stopRecording() }
     func windowDidResignKey(_ notification: Notification) { stopRecording() }
