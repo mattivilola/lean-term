@@ -255,8 +255,10 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         updateTabLabel()
     }
 
+    var tabLabel: String { customName ?? focusedPane.automaticTabLabel }
+
     private func updateTabLabel() {
-        let label = customName ?? focusedPane.automaticTabLabel
+        let label = tabLabel
         if window?.tab.title != label { window?.tab.title = label }
         let tooltip = focusedPane.locationToolTip
         if window?.tab.toolTip != tooltip { window?.tab.toolTip = tooltip }

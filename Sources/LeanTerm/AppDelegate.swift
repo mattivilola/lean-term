@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var settingsWindow: SettingsWindow?
     private var shortcutsWindow: ShortcutsWindow?
     private var aboutWindow: AboutWindow?
+    private var commandPalette: CommandPalette?
+    /// Titles of the last run palette entries, most recent first; memory only.
+    private var recentCommands: [String] = []
     private var terminationPending = false
     /// True while this app holds a Secure Event Input request; keeps enable/disable strictly balanced.
     private var secureInputEngaged = false
@@ -489,7 +492,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         aboutWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
+    @objc private func showCommandPalette(_ sender: Any?) {
+        if let commandPalette { commandPalette.close(restoreFocus: true); return }
+        guard !terminationPending, let window = activeSession?.window, window.attachedSheet == nil else { return }
+        var entries = CommandPalette.menuEntries(from: NSApp.mainMenu, skipping: [
+            #selector(showCommandPalette), #selector(NSApplication.terminate(_:))
+        ], excludedMenus: [NSApp.servicesMenu])
+        let windows = NSApp.windows
+        let tabs = sessions.values.compactMap { session -> (Int, TerminalWindow)? in
+            session.window.flatMap { windows.firstIndex(of: $0) }.map { ($0, session) }
+        }.sorted { $0.0 < $1.0 }
+        for (_, session) in tabs {
+            guard let tabWindow = session.window else { continue }
+            let subtitle = tabWindow.subtitle
+            entries.append(CommandPaletteEntry(title: "Go to Tab: " + session.tabLabel,
+                                               secondary: subtitle.isEmpty ? "Tab" : "Tab › " + subtitle, shortcut: "") { [weak tabWindow] in
+                guard let tabWindow else { return }
+                if tabWindow.isMiniaturized { tabWindow.deminiaturize(nil) }
+                tabWindow.tabGroup?.selectedWindow = tabWindow
+                tabWindow.makeKeyAndOrderFront(nil)
+            })
+        }
+        let palette = CommandPalette(entries: entries, recents: recentCommands, parent: window)
+        palette.didRun = { [weak self] title in
+            guard let self else { return }
+            recentCommands.removeAll { $0 == title }
+            recentCommands.insert(title, at: 0)
+            if recentCommands.count > 8 { recentCommands.removeLast(recentCommands.count - 8) }
+        }
+        palette.didClose = { [weak self] in self?.commandPalette = nil }
+        commandPalette = palette
+        palette.show()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(showCommandPalette) {
+            return (activeSession != nil || commandPalette != nil) && !terminationPending
+        }
         if menuItem.action == #selector(toggleSecureKeyboardEntry) {
             menuItem.state = preferences.secureKeyboardEntry ? .on : .off
             return !terminationPending
@@ -569,6 +608,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(edit, "Find Next", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.nextMatch.rawValue, shortcut: .findNext)
         add(edit, "Find Previous", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.previousMatch.rawValue, shortcut: .findPrevious)
         let terminal = group("Terminal")
+        add(terminal, "Command Palette…", #selector(showCommandPalette), target: self, shortcut: .commandPalette)
+        terminal.addItem(.separator())
         add(terminal, "Clear Screen and Scrollback", #selector(clearScreenAndScrollback), target: self, shortcut: .clearScrollback)
         terminal.addItem(.separator())
         add(terminal, "Split Right", #selector(splitRight), target: self, shortcut: .splitRight)

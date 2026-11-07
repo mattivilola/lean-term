@@ -47,7 +47,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
     case clearScrollback, largerText, smallerText, defaultText, settings, shortcuts, about, updates, quit
     case copyWithoutSensitiveData, previousPrompt, nextPrompt, selectCommandOutput
     case splitRight, splitDown, selectPaneLeft, selectPaneRight, selectPaneAbove, selectPaneBelow, zoomPane, equalizePanes
-    case renameTab, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, lastTab
+    case commandPalette, renameTab, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, lastTab
 
     public var title: String {
         switch self {
@@ -72,6 +72,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .previousPrompt: "Previous Prompt"
         case .nextPrompt: "Next Prompt"
         case .selectCommandOutput: "Select Command Output"
+        case .commandPalette: "Command Palette"
         case .renameTab: "Rename Tab"
         case .splitRight: "Split Right"
         case .splitDown: "Split Down"
@@ -113,6 +114,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .previousPrompt: .init("\u{F700}")
         case .nextPrompt: .init("\u{F701}")
         case .selectCommandOutput: .init("a", [.command, .shift])
+        case .commandPalette: .init("p", [.command, .shift])
         case .renameTab: .init("r", [.command, .shift])
         case .splitRight: .init("d")
         case .splitDown: .init("d", [.command, .shift])
@@ -163,7 +165,7 @@ public struct ShortcutConfiguration: Equatable, Sendable {
         if let override = overrides[action] { return override }
         let binding = action.defaultBinding
         // Existing personal bindings take precedence over newly introduced tab defaults.
-        let newTabActions: Set<ShortcutAction> = [.copyWithoutSensitiveData, .previousPrompt, .nextPrompt, .selectCommandOutput, .renameTab, .splitRight, .splitDown, .selectPaneLeft, .selectPaneRight, .selectPaneAbove, .selectPaneBelow, .zoomPane, .equalizePanes, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
+        let newTabActions: Set<ShortcutAction> = [.commandPalette, .copyWithoutSensitiveData, .previousPrompt, .nextPrompt, .selectCommandOutput, .renameTab, .splitRight, .splitDown, .selectPaneLeft, .selectPaneRight, .selectPaneAbove, .selectPaneBelow, .zoomPane, .equalizePanes, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
         if newTabActions.contains(action), let binding, overrides.values.contains(binding) { return nil }
         return binding
     }

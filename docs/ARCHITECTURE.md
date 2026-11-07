@@ -279,3 +279,17 @@ closes the whole tab. A pane whose shell exits closes itself under the close-on-
 preference, and the last pane closes the tab. Workspace saving records each tab's
 layout (shape, axes, ratios, every pane's folder, focused pane) so reopening on
 launch restores the splits with fresh shells; zoom is not persisted.
+
+## Command palette
+
+Terminal › Command Palette… (⇧⌘P, in the shortcut map) opens `CommandPalette`, a borderless
+`NSPanel` (menu-material `NSVisualEffectView`) attached as a child window near the top of the key
+terminal window. It is built on open and released on close, so nothing runs while it is closed.
+Entries are gathered at open time: every enabled, actionable item of `NSApp.mainMenu` (menus are
+`update()`d first so validation applies; separators, hidden items, submenu parents, Services, Open Recent,
+window-list items, Quit and the palette itself are skipped), plus a "Go to Tab: <label>" entry for each tab
+of every terminal window. Running an entry closes the palette, makes the terminal window key again, then
+invokes `NSApp.sendAction(item.action, to: item.target, from: item)` so first-responder actions reach the
+focused pane. `CommandMatcher.score` (Core) is a case-insensitive subsequence match with bonuses for word
+starts and consecutive characters; an empty query lists the last 8 run titles (memory only) and then menu order.
+
