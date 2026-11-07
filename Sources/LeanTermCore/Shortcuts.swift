@@ -45,7 +45,7 @@ public struct ShortcutBinding: Equatable, Sendable {
 public enum ShortcutAction: String, CaseIterable, Sendable {
     case newWindow, newTab, close, previousTab, nextTab, find, findNext, findPrevious
     case clearScrollback, largerText, smallerText, defaultText, settings, shortcuts, about, updates, quit
-    case copyWithoutSensitiveData
+    case copyWithoutSensitiveData, previousPrompt, nextPrompt, selectCommandOutput
     case renameTab, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, lastTab
 
     public var title: String {
@@ -68,6 +68,9 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .updates: "Check for Updates"
         case .quit: "Quit Lean Term"
         case .copyWithoutSensitiveData: "Copy Without Sensitive Data"
+        case .previousPrompt: "Previous Prompt"
+        case .nextPrompt: "Next Prompt"
+        case .selectCommandOutput: "Select Command Output"
         case .renameTab: "Rename Tab"
         case .tab1: "Select Tab 1"
         case .tab2: "Select Tab 2"
@@ -98,6 +101,9 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .shortcuts: .init("?")
         case .quit: .init("q")
         case .copyWithoutSensitiveData: .init("c", [.command, .option])
+        case .previousPrompt: .init("\u{F700}")
+        case .nextPrompt: .init("\u{F701}")
+        case .selectCommandOutput: .init("a", [.command, .shift])
         case .renameTab: .init("r", [.command, .shift])
         case .tab1: .init("1")
         case .tab2: .init("2")
@@ -140,7 +146,7 @@ public struct ShortcutConfiguration: Equatable, Sendable {
         if let override = overrides[action] { return override }
         let binding = action.defaultBinding
         // Existing personal bindings take precedence over newly introduced tab defaults.
-        let newTabActions: Set<ShortcutAction> = [.copyWithoutSensitiveData, .renameTab, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
+        let newTabActions: Set<ShortcutAction> = [.copyWithoutSensitiveData, .previousPrompt, .nextPrompt, .selectCommandOutput, .renameTab, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
         if newTabActions.contains(action), let binding, overrides.values.contains(binding) { return nil }
         return binding
     }

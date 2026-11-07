@@ -105,11 +105,26 @@ all owned sessions; ordinary shell exit retains final output in its window.
 Normal shell/PTY hangup semantics apply to descendants. This is not a process-tree
 manager and does not promise to stop deliberately detached jobs.
 
+## Prompt navigation
+
+Opt-in and shell-driven: Lean Term never injects hooks. When the shell emits OSC 133
+(`docs/SHELL_INTEGRATION.md`), SwiftTerm stores zero-width prompt marks on buffer lines and tags
+cells written after `C` as output. Terminal › Previous/Next Prompt (⌘↑/⌘↓) use SwiftTerm's public
+`previousSemanticPromptRow()`/`nextSemanticPromptRow()` and `scrollTo(row:)`; past the last prompt the
+view returns to the live bottom. Edit › Select Command Output (⇧⌘A) asks the view for one role byte
+per buffer row (prompt, output, other) and `CommandOutputLocator` (Core, pure) picks the output rows of
+the command at the viewport top, or the latest one at the live bottom. Scans run only when a command
+is invoked or a menu is validated (`hasSemanticPrompts`, early exit), never per frame or on output.
+The items are disabled without prompt marks and in the alternate screen. Those row-level helpers and
+`selectBufferRows` are the only public API SwiftTerm lacked, so `script/prepare_dependency.py` adds
+them to `MacTerminalView.swift` under the same exact-hash rules as the lifecycle patch.
+
 ## Pinned compatibility patch
 
 SwiftTerm is pinned to `309adcc28bdf0e01f6403d04616323b379fb5635`. Its public
 `terminate()` supports TERM only, while its private reaper already protects signals
-against PID reuse. `script/prepare_dependency.py` makes three small changes:
+against PID reuse. `script/prepare_dependency.py` makes three small lifecycle changes (plus the prompt helpers
+described above):
 
 1. Expose `terminate(signal: Int32 = SIGTERM)`.
 2. Permit a later signal while the session is already terminating.

@@ -97,6 +97,9 @@ import Testing
     #expect(value.binding(for: .tab1)?.display == "⌘1")
     #expect(value.binding(for: .lastTab)?.display == "⌘9")
     #expect(value.binding(for: .renameTab)?.display == "⇧⌘R")
+    #expect(value.binding(for: .previousPrompt)?.display == "⌘↑")
+    #expect(value.binding(for: .nextPrompt)?.display == "⌘↓")
+    #expect(value.binding(for: .selectCommandOutput)?.display == "⇧⌘A")
     #expect(throws: ShortcutConfiguration.Failure.self) { try value.set(.init("1"), for: .newWindow) }
     try value.set(.init("n", [.command, .option]), for: .newWindow)
     value.save(to: defaults)
@@ -195,4 +198,15 @@ import Testing
     #expect(PathDetection.characterOffset(ofColumn: 5, in: "日本ab") == 3)
     #expect(PathDetection.characterOffset(ofColumn: 4, in: "日本ab") == 2)
     #expect(PathDetection.characterOffset(ofColumn: 3, in: "日本ab") == 1)
+}
+
+@Test func commandOutputIsFoundFromViewportOrLiveBottom() {
+    //             0  1  2  3  4  5  6  7  8
+    let roles: [UInt8] = [0, 1, 2, 2, 0, 2, 1, 2, 1]
+    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 5, visibleRows: 2) == 2...5)
+    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 7, visibleRows: 1) == 7...7)
+    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 0, visibleRows: 3) == nil)
+    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 5, visibleRows: 4) == 7...7)
+    #expect(CommandOutputLocator.outputRows(roles: [1, 2, 2, 1], viewportTop: 1, visibleRows: 3) == 1...2)
+    #expect(CommandOutputLocator.outputRows(roles: [0, 0], viewportTop: 0, visibleRows: 2) == nil)
 }

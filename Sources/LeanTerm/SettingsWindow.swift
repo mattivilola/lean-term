@@ -18,6 +18,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
     private let fileOpener = NSPopUpButton()
     private let getLeanVSCode = NSButton(title: "Get Lean VS Code…", target: nil, action: nil)
+    private let howToIntegrate = NSButton(title: "How to enable…", target: nil, action: nil)
     private let makeDefault = NSButton(title: "Make Lean Term the Default Terminal", target: nil, action: nil)
     private let defaultStatus = NSTextField(labelWithString: "")
     private let restore = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
@@ -107,12 +108,18 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         getLeanVSCode.bezelStyle = .inline; getLeanVSCode.controlSize = .small
         let openFiles = Self.vertical([NSStackView(views: [fileOpener, getLeanVSCode]),
             Self.note("⌘-click a path in the terminal to open it; ⌘-click a folder to cd there, ⌘⇧-click for a new tab.")], spacing: 7)
+        howToIntegrate.target = self; howToIntegrate.action = #selector(openShellIntegrationDocs)
+        howToIntegrate.bezelStyle = .inline; howToIntegrate.controlSize = .small
+        let shellIntegration = Self.vertical([
+            Self.note("Prompt navigation (⌘↑/⌘↓) and Select Command Output need your shell to mark prompts (OSC 133)."),
+            howToIntegrate], spacing: 7)
         let behaviorPage = Self.grid([
             [NSTextField(labelWithString: "Keyboard"), keyboard],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
             [NSTextField(labelWithString: "Copying"), Self.vertical([redactCopies,
                 Self.note("Masks passwords, API keys, tokens, private keys, card numbers, IBANs, personal identity numbers and email addresses as [REMOVED:…]. ⌥⌘C always copies without them.")], spacing: 7)],
             [NSTextField(labelWithString: "Open files with"), openFiles],
+            [NSTextField(labelWithString: "Shell integration"), shellIntegration],
             [NSTextField(labelWithString: "Sessions"), sessions],
             [NSTextField(labelWithString: "Status bar"), monitoring],
             [NSTextField(labelWithString: "Activity"), activity],
@@ -393,6 +400,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         app.updatePreferences(value)
         refreshFileOpener(app.preferences.fileOpener)
     }
+    @objc private func openShellIntegrationDocs() { NSWorkspace.shared.open(Self.shellIntegrationDocs) }
+    private static let shellIntegrationDocs = URL(string: "https://github.com/mattivilola/lean-term/blob/main/docs/SHELL_INTEGRATION.md")!
     @objc private func openLeanVSCodeSite() { NSWorkspace.shared.open(FileOpener.leanVSCodeSite) }
     private static let scriptType = UTType("com.apple.terminal.shell-script")
     private static let sshProbe = URL(string: "ssh://example.com")!

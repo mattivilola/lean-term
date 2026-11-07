@@ -136,6 +136,9 @@ final class LeanTerminalView: LocalProcessTerminalView {
 
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(copyWithoutSensitiveData(_:)) { return selectionActive }
+        if [#selector(previousPrompt(_:)), #selector(nextPrompt(_:)), #selector(selectCommandOutput(_:))].contains(item.action) {
+            return hasSemanticPrompts
+        }
         return super.validateUserInterfaceItem(item)
     }
 
@@ -151,6 +154,27 @@ final class LeanTerminalView: LocalProcessTerminalView {
             NSPasteboard.general.setString(result.text, forType: .string)
             if result.removed > 0 { onCopyRedacted?(result.removed) }
         }
+    }
+
+    // MARK: Prompt navigation (needs the shell to emit OSC 133)
+
+    @objc func previousPrompt(_ sender: Any?) {
+        if let row = previousSemanticPromptRow() { scrollTo(row: row) }
+    }
+
+    /// Past the last prompt the view returns to the live bottom (scrolling clamps to it).
+    @objc func nextPrompt(_ sender: Any?) {
+        if let row = nextSemanticPromptRow() { scrollTo(row: row) } else { scrollTo(row: .max) }
+    }
+
+    /// Selects the output of the command at the top of the viewport, or of the latest command at the live
+    /// bottom, so Copy and Copy Without Sensitive Data can take it. Scans the rows once per invocation.
+    @objc func selectCommandOutput(_ sender: Any?) {
+        guard let map = semanticRowRoles(),
+              let rows = CommandOutputLocator.outputRows(roles: map.roles, viewportTop: map.viewportTop, visibleRows: map.visibleRows)
+        else { return }
+        if !(map.viewportTop..<(map.viewportTop + map.visibleRows)).contains(rows.lowerBound) { scrollTo(row: rows.lowerBound) }
+        selectBufferRows(rows)
     }
 
     // MARK: Clickable paths
