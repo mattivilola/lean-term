@@ -4,6 +4,14 @@ import LeanTermCore
 
 /// Reads the foreground process-group leader straight from the kernel; never shells out.
 enum ForegroundProcessReader {
+    static func hasExecuted(_ pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size &&
+            info.pbi_flags & UInt32(PROC_FLAG_EXEC) != 0
+    }
+
     /// Read the local shell's cwd, even when it does not emit OSC 7 directory reports.
     static func workingDirectory(of pid: pid_t) -> String? {
         guard pid > 0 else { return nil }

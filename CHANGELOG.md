@@ -3,6 +3,7 @@
 ## 0.5.2 — Path hover hints
 
 - Holding ⌘ over a clickable path shows an animated phosphor highlight and a hint of what a click will do.
+- New tabs keep their intended working directory while the shell starts.
 
 ## 0.5.1 — Split panes and command palette
 

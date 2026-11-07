@@ -90,6 +90,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private var theme: TerminalTheme
     private let launch: ShellLaunch
     private var didStart = false
+    private var shellHasExecuted = false
     private(set) var terminationCount = 0
     /// Typed into the shell right after it starts (opened scripts and ssh links), like Terminal.app.
     var initialCommand: String?
@@ -392,10 +393,15 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     }
 
     func refreshDirectory() {
-        if didStart, let process = terminal.process, process.running,
-           let path = ForegroundProcessReader.workingDirectory(of: process.shellPid), path != currentDirectory {
-            currentDirectory = path
-            host?.paneDidChangeDirectory(self)
+        if didStart, let process = terminal.process, process.running {
+            // Before exec, the forked child can still be in the app's working directory.
+            if !shellHasExecuted {
+                shellHasExecuted = ForegroundProcessReader.hasExecuted(process.shellPid)
+            }
+            if shellHasExecuted, let path = ForegroundProcessReader.workingDirectory(of: process.shellPid), path != currentDirectory {
+                currentDirectory = path
+                host?.paneDidChangeDirectory(self)
+            }
         }
         host?.paneDidChangeLocation(self)
     }
