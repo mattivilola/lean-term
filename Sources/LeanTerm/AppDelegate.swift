@@ -66,9 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 session.resourceStatus.update(snapshot)
             }
         }
-        activityMonitor.sessions = { [weak self] in self.map { Array($0.sessions.values) } ?? [] }
+        activityMonitor.panes = { [weak self] in self?.sessions.values.flatMap(\.panes) ?? [] }
         notifier.openSession = { [weak self] id in
-            guard let session = self?.sessions[id] else { return }
+            guard let session = self?.sessions.values.first(where: { $0.panes.contains { $0.id == id } }) else { return }
             NSApp.activate(ignoringOtherApps: true)
             session.present()
         }
@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard !terminationPending else { return nil }
         let session = TerminalWindow(preferences: preferences, directory: directory)
         session.app = self
-        session.initialCommand = initialCommand
+        session.focusedPane.initialCommand = initialCommand
         session.activityMonitor = activityMonitor
         let placement = WindowPlacement(defaults: defaults)
         session.restorePlacement(placement, tabOf: tabOf)
@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     func remove(_ session: TerminalWindow) {
         guard sessions.removeValue(forKey: session.id) != nil else { return }
-        notifier.clear(sessionID: session.id)
+        for pane in session.panes { notifier.clear(sessionID: pane.id) }
         unseenActivityChanged()
         sessionDidFinish()
         refreshResourceMonitoring()
@@ -465,7 +465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func changeFont(by delta: Double) {
         var value = preferences; value.fontSize += delta; updatePreferences(value)
     }
-    @objc func clearScreenAndScrollback(_ sender: Any?) { activeSession?.clearScreenAndScrollback() }
+    @objc func clearScreenAndScrollback(_ sender: Any?) { activeSession?.focusedPane.clearScreenAndScrollback() }
     @objc private func about(_ sender: Any?) {
         if aboutWindow == nil { aboutWindow = AboutWindow() }
         aboutWindow?.showWindow(nil)

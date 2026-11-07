@@ -26,8 +26,15 @@ view. CoreGraphics/CoreText is explicitly selected. The app adds no renderer,
 parser, PTY reader or input encoding layer. Appearance changes remain event-driven.
 
 - `AppDelegate` owns menus, preferences, windows and aggregate quit coordination.
-- `TerminalWindow` owns one SwiftTerm view and its shell. Native tabs group ordinary
-  windows; each tab has an independent session and lifecycle.
+- `TerminalPane` owns one shell session: its SwiftTerm view, process lifecycle,
+  activity tracking, working directory and per-session preferences and theme. It
+  reports window-level effects (title, status, tab mark, closing) through
+  `TerminalPaneHost`.
+- `TerminalWindow` is the window controller of one native tab. It owns the window,
+  footer, toolbar, tab mark and close confirmation, hosts a collection of panes
+  (currently always one) and aggregates their state: the focused pane supplies
+  title, subtitle and session mark, any pane can mark the tab busy or unseen.
+  Native tabs group ordinary windows; each tab has an independent lifecycle.
 - `SettingsWindow` applies small typed preferences to all sessions. macOS
   UserDefaults persists them under `com.mattivilola.leanterm` for this first version.
 - `LeanTermCore` contains the testable preferences and login-shell launch values.

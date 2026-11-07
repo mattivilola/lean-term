@@ -1,11 +1,11 @@
 import AppKit
 import LeanTermCore
 
-/// Samples terminal sessions only while something is happening. When every session is idle there is no
-/// timer at all; PTY output (see `TerminalWindow`) wakes it again.
+/// Samples terminal panes only while something is happening. When every pane is idle there is no
+/// timer at all; PTY output (see `TerminalPane`) wakes it again.
 @MainActor
 final class SessionActivityMonitor {
-    var sessions: () -> [TerminalWindow] = { [] }
+    var panes: () -> [TerminalPane] = { [] }
     var enabled = false {
         didSet {
             guard enabled != oldValue else { return }
@@ -13,7 +13,7 @@ final class SessionActivityMonitor {
                 wake()
             } else {
                 stopTimer()
-                for session in sessions() { session.resetActivity() }
+                for pane in panes() { pane.resetActivity() }
             }
         }
     }
@@ -26,7 +26,7 @@ final class SessionActivityMonitor {
         let changed: @Sendable (Notification) -> Void = { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                for session in self.sessions() { session.motionOptionsChanged() }
+                for pane in self.panes() { pane.motionOptionsChanged() }
             }
         }
         observers = [
@@ -52,7 +52,7 @@ final class SessionActivityMonitor {
     private func tick() {
         let now = ProcessInfo.processInfo.systemUptime
         var needsPolling = false
-        for session in sessions() where session.sampleActivity(at: now) { needsPolling = true }
+        for pane in panes() where pane.sampleActivity(at: now) { needsPolling = true }
         if !needsPolling { stopTimer() }
     }
 

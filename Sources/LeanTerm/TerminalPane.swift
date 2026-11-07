@@ -1,0 +1,455 @@
+import AppKit
+import LeanTermCore
+import Darwin
+import SwiftTerm
+import Synchronization
+
+/// Cross-thread output signal for the PTY parse thread. It only touches atomics.
+final class SessionActivityCounter: Sendable {
+    private let output = Atomic<UInt64>(0)
+    private let armed = Atomic<Bool>(false)
+
+    var outputCount: UInt64 { output.load(ordering: .relaxed) }
+
+    /// Counts one output batch. Returns true when the sampler should be woken, at most once per sample.
+    func noteOutput() -> Bool {
+        output.add(1, ordering: .relaxed)
+        return armed.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged
+    }
+
+    func disarm() { armed.store(false, ordering: .relaxed) }
+}
+
+/// Everything window-level that a pane reports or asks for. `TerminalWindow` implements it.
+@MainActor
+protocol TerminalPaneHost: AnyObject {
+    /// The pane is on screen (its window is visible and its tab selected).
+    func isPaneVisible(_ pane: TerminalPane) -> Bool
+    /// The pane is the focused pane of the key window of an active app.
+    func isPaneBeingViewed(_ pane: TerminalPane) -> Bool
+    /// Whether a shell exit may close the pane automatically (no quit in progress, no sheet to preserve).
+    func permitsAutomaticClose(for pane: TerminalPane) -> Bool
+
+    /// Directory, remote location or foreground session changed: subtitle, tab label and represented URL.
+    func paneDidChangeLocation(_ pane: TerminalPane)
+    /// The pane's working directory changed (the window's represented URL).
+    func paneDidChangeDirectory(_ pane: TerminalPane)
+    /// The shell set a non-empty terminal title.
+    func pane(_ pane: TerminalPane, didSetTitle title: String)
+    /// Indicator, unseen state or session mark changed: tab mark.
+    func paneDidChangeActivity(_ pane: TerminalPane)
+    func paneDidChangeUnseenActivity(_ pane: TerminalPane)
+    /// PTY output arrived while the sampler may be asleep.
+    func paneDidReceiveOutput(_ pane: TerminalPane)
+    func pane(_ pane: TerminalPane, finishedLongCommandAfter duration: TimeInterval)
+
+    func pane(_ pane: TerminalPane, didSetStatus text: String)
+    func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool)
+    func pane(_ pane: TerminalPane, didChangeDimensions text: String)
+    func pane(_ pane: TerminalPane, didCopyRedacted removed: Int)
+    func paneDidDisableMultilinePasteConfirmation(_ pane: TerminalPane)
+
+    /// The shell ended and the pane should go away (the closing state, or close-on-exit).
+    func paneWantsClose(_ pane: TerminalPane)
+    /// The shell ended; the app may be waiting for it.
+    func paneDidTerminate(_ pane: TerminalPane)
+    func pane(_ pane: TerminalPane, opensTerminalIn folder: URL)
+}
+
+/// One shell session: its terminal view, process lifecycle, activity tracking and working directory.
+/// A `TerminalWindow` hosts one or more panes and aggregates their state.
+@MainActor
+final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
+    enum State { case starting, running, closing, exited, failed }
+    let id = UUID()
+    let terminal: LeanTerminalView
+    /// Scanner and terminal; the window's footer stays outside.
+    let view = NSView()
+    weak var host: TerminalPaneHost?
+    private let scanner = ActivityScannerView()
+    private let activityCounter = SessionActivityCounter()
+    private var activityModel = SessionActivityModel()
+    private(set) var finishedUnseen = false { didSet { if finishedUnseen != oldValue { host?.paneDidChangeUnseenActivity(self) } } }
+    private(set) var bellUnseen = false { didSet { if bellUnseen != oldValue { host?.paneDidChangeUnseenActivity(self) } } }
+    var hasUnseenActivity: Bool { finishedUnseen || bellUnseen }
+    var activityIndicator: ActivityIndicator { activityModel.indicator }
+    private var foregroundGroup: pid_t = 0
+    private var foregroundLeaderPendingExec = false
+    private var session = ForegroundSession.local
+    private var remoteLocation: (host: String, path: String)?
+    private var fallback: DispatchWorkItem?
+    private(set) var state: State = .starting
+    private(set) var currentDirectory: String
+    private var preferences: Preferences
+    private var theme: TerminalTheme
+    private let launch: ShellLaunch
+    private var didStart = false
+    private(set) var terminationCount = 0
+    /// Typed into the shell right after it starts (opened scripts and ssh links), like Terminal.app.
+    var initialCommand: String?
+
+    var live: Bool { state == .running || state == .starting || state == .closing }
+    var folderName: String {
+        currentDirectory == NSHomeDirectory() ? "~" : (currentDirectory == "/" ? "/" : URL(fileURLWithPath: currentDirectory).lastPathComponent)
+    }
+    var directoryForNewSession: String {
+        refreshDirectory()
+        return ShellLaunch.localDirectory(from: URL(fileURLWithPath: currentDirectory).absoluteString) ?? NSHomeDirectory()
+    }
+    /// The footer text a fresh pane starts with.
+    var initialStatusText: String {
+        launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
+    }
+
+    init(preferences: Preferences, directory: String?) {
+        self.preferences = preferences
+        theme = TerminalTheme(palette: preferences.palette,
+                              dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+        launch = ShellLaunch(directory: directory)
+        currentDirectory = launch.directory
+        let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
+        let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
+        terminal = LeanTerminalView(frame: .zero, font: font,
+            options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: Preferences.scrollbackLines))
+        super.init()
+        terminal.processDelegate = self
+        installOutputHandler()
+        terminal.onBell = { [weak self] in self?.bellRang() }
+        terminal.confirmsMultilinePaste = preferences.confirmMultilinePaste
+        terminal.redactsCopies = preferences.redactCopies
+        terminal.onCopyRedacted = { [weak self] removed in
+            guard let self else { return }
+            host?.pane(self, didCopyRedacted: removed)
+        }
+        terminal.onDisableMultilinePasteConfirmation = { [weak self] in
+            guard let self else { return }
+            host?.paneDidDisableMultilinePasteConfirmation(self)
+        }
+        terminal.pathDelegate = self
+        terminal.bellStyle = .none
+        // This remains the measured CoreGraphics/CoreText implementation.
+        do { try terminal.setUseMetal(false) }
+        catch { preconditionFailure("Cannot select CoreGraphics: \(error)") }
+        terminal.translatesAutoresizingMaskIntoConstraints = false
+        terminal.setAccessibilityLabel("Terminal session")
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(terminal)
+        scanner.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scanner)
+        NSLayoutConstraint.activate([
+            scanner.topAnchor.constraint(equalTo: view.topAnchor, constant: 5),
+            scanner.heightAnchor.constraint(equalToConstant: 2),
+            scanner.leadingAnchor.constraint(equalTo: terminal.leadingAnchor),
+            scanner.trailingAnchor.constraint(equalTo: terminal.trailingAnchor),
+            terminal.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+            terminal.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            terminal.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            terminal.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    /// Register the pane with the app before a shell can synchronously exit.
+    func start(smoke: Bool = false) {
+        guard !didStart, state == .starting else { return }
+        didStart = true
+        if smoke {
+            terminal.startProcess(executable: "/bin/zsh", args: ["-f"], environment: launch.environment, currentDirectory: currentDirectory)
+        } else {
+            terminal.startProcess(executable: launch.executable, environment: launch.environment, execName: launch.execName, currentDirectory: currentDirectory)
+        }
+        if state == .starting { state = terminal.process.running ? .running : .failed }
+        if state == .running, let initialCommand { terminal.send(txt: initialCommand + "\r") }
+        refreshDirectory()
+    }
+
+    // MARK: Activity
+
+    /// The key window of an active app with this pane on screen.
+    private var isBeingViewed: Bool { host?.isPaneBeingViewed(self) ?? false }
+
+    private func bellRang() {
+        guard preferences.showTabActivity, !isBeingViewed else { return }
+        bellUnseen = true
+        renderActivity()
+    }
+
+    private func installOutputHandler() {
+        let counter = activityCounter
+        terminal.setProcessOutputHandler { [weak self] in
+            guard counter.noteOutput() else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.host?.paneDidReceiveOutput(self)
+                }
+            }
+        }
+    }
+
+    /// Samples the foreground job once. Returns whether another sample is needed.
+    func sampleActivity(at time: TimeInterval) -> Bool {
+        var foreground = false
+        var group: pid_t = 0
+        if let process = terminal.process, process.running {
+            let current = tcgetpgrp(process.childfd)
+            foreground = current > 0 && current != process.shellPid
+            if foreground { group = current }
+        }
+        updateSession(group: group)
+        if !foreground { refreshDirectory() }
+        let sample = SessionActivitySample(
+            foregroundJobRunning: foreground,
+            alternateScreen: terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true,
+            outputCount: activityCounter.outputCount, time: time,
+            remoteSession: session.isRemote)
+        activityCounter.disarm()
+        if case .finishedLongCommand(let duration)? = activityModel.record(sample), !isBeingViewed {
+            if preferences.showTabActivity { finishedUnseen = true }
+            host?.pane(self, finishedLongCommandAfter: duration)
+        }
+        if activityModel.indicator != .idle { finishedUnseen = false }
+        renderActivity()
+        return activityModel.needsPolling
+    }
+
+    func motionOptionsChanged() { scanner.motionOptionsChanged() }
+
+    /// Looks the foreground leader up once per job start, never per tick. A leader still named like the
+    /// shell has been forked but may not have exec'd its command yet, so it is read again next sample.
+    private func updateSession(group: pid_t) {
+        guard group != foregroundGroup || foregroundLeaderPendingExec else { return }
+        foregroundGroup = group
+        let previous = session
+        let leader = group > 0 ? ForegroundProcessReader.read(groupLeader: group) : nil
+        foregroundLeaderPendingExec = leader?.name == URL(fileURLWithPath: launch.executable).lastPathComponent
+        session = ForegroundSession(leader)
+        if !session.isRemote { remoteLocation = nil }
+        if session != previous { host?.paneDidChangeLocation(self) }
+    }
+
+    /// The colour of the first host rule matching the remote host (OSC 7 host first, then the ssh destination).
+    private var hostTint: NSColor? {
+        guard preferences.showSessionMarks, case .remote(_, let parsed) = session,
+              let host = remoteLocation?.host ?? parsed,
+              let color = Preferences.hostColor(for: host, in: preferences.hostColorRules) else { return nil }
+        return theme.hostColor(color)
+    }
+
+    /// The session mark for the window's tab.
+    var sessionMark: SessionMark {
+        preferences.showSessionMarks ? session.mark(tint: hostTint) : .none
+    }
+
+    /// Subtitle text: the local folder, or the remote location while connected.
+    var locationSubtitle: String {
+        let local = Self.displayPath(currentDirectory)
+        if !preferences.showSessionMarks { return local }
+        switch session {
+        case .local: return local
+        case .root: return "root · " + local
+        case .remote(let tool, let host):
+            return remoteLocation.map { "\($0.host):\($0.path)" } ?? host.map { "\(tool) \($0)" } ?? tool
+        }
+    }
+
+    /// The tab label when no custom name is set.
+    var automaticTabLabel: String {
+        if case .remote(_, let host) = session { return remoteLocation?.host ?? host ?? folderName }
+        return folderName
+    }
+
+    var locationToolTip: String { remoteLocation.map { "\($0.host):\($0.path)" } ?? currentDirectory }
+
+    func resetActivity() {
+        activityModel.reset()
+        foregroundGroup = 0; foregroundLeaderPendingExec = false
+        session = .local
+        remoteLocation = nil
+        host?.paneDidChangeLocation(self)
+        finishedUnseen = false
+        bellUnseen = false
+        renderActivity()
+    }
+
+    /// The window was focused or the shell was reset: nothing is unseen any more.
+    func markSeen() {
+        finishedUnseen = false
+        bellUnseen = false
+    }
+
+    /// Updates the scanner only; the window re-renders its own marks.
+    func renderScanner() {
+        scanner.setIndicator(preferences.showActivityScanner ? activityModel.indicator : .idle, visible: host?.isPaneVisible(self) ?? false)
+        scanner.setHostTint(hostTint)
+    }
+
+    func renderActivity() {
+        renderScanner()
+        host?.paneDidChangeActivity(self)
+    }
+
+    // MARK: Preferences and theme
+
+    func apply(_ value: Preferences) {
+        preferences = value
+        if !value.showTabActivity { markSeen() }
+        let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
+        if terminal.font != font { terminal.font = font }
+        terminal.optionAsMetaKey = value.optionAsMeta
+        terminal.confirmsMultilinePaste = value.confirmMultilinePaste
+        terminal.redactsCopies = value.redactCopies
+        terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
+    }
+
+    func applyTheme(_ theme: TerminalTheme) {
+        self.theme = theme
+        terminal.installColors(theme.ansi)
+        terminal.nativeBackgroundColor = theme.background
+        terminal.nativeForegroundColor = theme.foreground
+        terminal.caretColor = theme.accent
+        terminal.selectedTextBackgroundColor = theme.selection
+        terminal.selectedTextForegroundColor = theme.foreground
+        scanner.applyAccent(theme.phosphor)
+        terminal.progressBarColor = theme.phosphor
+        renderActivity()
+    }
+
+    // MARK: Shutdown
+
+    /// Keep the PTY/view alive until SwiftTerm has reaped the child and drained output.
+    /// Only called after synchronous launch returns. No PID is captured or signalled here.
+    func beginShutdown() {
+        guard live, state != .closing else { return }
+        state = .closing
+        host?.pane(self, didSetStatus: "Closing session…")
+        terminal.isHidden = false
+        terminal.process.terminate(signal: SIGHUP)
+        let session = id
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.id == session, self.state == .closing else { return }
+            self.terminal.process.terminate(signal: SIGKILL)
+        }
+        fallback = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75, execute: work)
+    }
+
+    func cancelShutdownFallback() {
+        fallback?.cancel(); fallback = nil
+    }
+
+    // MARK: Process delegate
+
+    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
+        host?.pane(self, didChangeDimensions: "\(newCols) × \(newRows)")
+    }
+    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
+        let clean = String(title.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(120))
+        if !clean.isEmpty { host?.pane(self, didSetTitle: clean) }
+    }
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
+        if let path = ShellLaunch.localDirectory(from: directory) {
+            currentDirectory = path
+            host?.paneDidChangeDirectory(self)
+            host?.paneDidChangeLocation(self)
+        } else if session.isRemote, let location = ShellLaunch.remoteDirectory(from: directory) {
+            remoteLocation = location
+            host?.paneDidChangeLocation(self)
+            renderActivity()
+        }
+    }
+
+    func refreshDirectory() {
+        if didStart, let process = terminal.process, process.running,
+           let path = ForegroundProcessReader.workingDirectory(of: process.shellPid), path != currentDirectory {
+            currentDirectory = path
+            host?.paneDidChangeDirectory(self)
+        }
+        host?.paneDidChangeLocation(self)
+    }
+
+    func processTerminated(source: TerminalView, exitCode: Int32?) {
+        // The window may be released by the close below; keep it for the final callback.
+        let host = host
+        terminationCount += 1
+        resetActivity()
+        let wasClosing = state == .closing
+        state = .exited
+        cancelShutdownFallback()
+        host?.pane(self, didSetStatus: exitCode == 0 ? "Session ended" : "Session ended · \(exitCode.map(String.init) ?? "signal")")
+        host?.pane(self, setRestartHidden: false)
+        // Preserve any outstanding close/quit sheet. Cancel must keep its window.
+        if wasClosing || (preferences.closeTabOnShellExit && host?.permitsAutomaticClose(for: self) == true) {
+            host?.paneWantsClose(self)
+        }
+        host?.paneDidTerminate(self)
+    }
+    func processFailedToStart(source: TerminalView, error: LocalProcessError) {
+        state = .failed
+        resetActivity()
+        host?.pane(self, didSetStatus: "Couldn’t start the shell")
+        host?.pane(self, setRestartHidden: false)
+    }
+
+    func clearScreenAndScrollback() {
+        terminal.selectNone()
+        // Local parser output only: never send a control key/command to the shell.
+        // Keep terminal modes and the configured history capacity intact.
+        terminal.feed(text: "\u{1B}[H\u{1B}[2J")
+        terminal.clearScrollback()
+    }
+
+    private static func displayPath(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        if path == home { return "~" }
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+}
+
+extension TerminalPane: TerminalPathDelegate {
+    /// The foreground job, read fresh: the polled value can lag a click by one sample.
+    private func refreshForeground() -> Bool {
+        guard let process = terminal.process, process.running else { return false }
+        let current = tcgetpgrp(process.childfd)
+        let job = current > 0 && current != process.shellPid
+        updateSession(group: job ? current : 0)
+        return job
+    }
+
+    var pathsAreRemote: Bool {
+        _ = refreshForeground()
+        return session.isRemote
+    }
+
+    func resolvePath(_ detected: DetectedPath) -> ResolvedPath? {
+        FileOpener.resolve(detected, relativeTo: directoryForNewSession)
+    }
+
+    func openPath(_ path: ResolvedPath, inNewTab: Bool) {
+        guard path.isDirectory else {
+            FileOpener.open(path, with: preferences.fileOpener)
+            return
+        }
+        // Typing `cd` is only safe when the shell is waiting at its prompt.
+        if !inNewTab, state == .running, !refreshForeground(), !session.isRemote {
+            terminal.send(txt: "\u{15}cd -- " + ShellEscape.path(path.url.path) + "\r")
+        } else {
+            host?.pane(self, opensTerminalIn: path.url)
+        }
+    }
+}
+
+private extension ForegroundSession {
+    var isRemote: Bool {
+        if case .remote = self { return true }
+        return false
+    }
+
+    func mark(tint: NSColor?) -> SessionMark {
+        switch self {
+        case .local: return .none
+        case .root: return .root
+        case .remote(let tool, let host):
+            return .remote(host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)", tint: tint)
+        }
+    }
+}

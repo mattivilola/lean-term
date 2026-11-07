@@ -5,7 +5,7 @@ import UserNotifications
 /// while the preference is on, so nobody who never opts in sees a permission prompt.
 @MainActor
 final class BackgroundNotifier: NSObject, UNUserNotificationCenterDelegate {
-    /// Brings the session with this id to the front.
+    /// Brings the window owning the pane with this id to the front.
     var openSession: ((UUID) -> Void)?
     private let disabled: Bool
     private var enabled = false

@@ -109,7 +109,7 @@ final class SmokeCheck {
         } && !first.terminal.selectionActive, "Cmd-K clears the screen, history, search results and selection")
         first.terminal.feed(text: "\u{1B}[?1049h\u{1B}[?2004hALT_CLEAR_TARGET")
         try await wait { first.terminal.findNext("ALT_CLEAR_TARGET") }
-        first.clearScreenAndScrollback()
+        first.focusedPane.clearScreenAndScrollback()
         try await wait { !first.terminal.findNext("ALT_CLEAR_TARGET") }
         let modes = first.terminal.terminalInputStateSnapshot()
         try expect(modes?.isAlternateBuffer == true && modes?.bracketedPasteMode == true,
