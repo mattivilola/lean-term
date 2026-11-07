@@ -75,6 +75,8 @@ public struct Preferences: Equatable, Sendable {
     public var secureKeyboardEntry = false
     public var confirmMultilinePaste = true
     public var redactCopies = false
+    /// Slightly dims split panes other than the focused one.
+    public var dimInactivePanes = true
     public var fileOpener = FileOpenerChoice.leanVSCode
     public static let scrollbackLines = 10_000
 
@@ -100,6 +102,7 @@ public struct Preferences: Equatable, Sendable {
         secureKeyboardEntry = defaults.bool(forKey: "secureKeyboardEntry")
         confirmMultilinePaste = defaults.object(forKey: "confirmMultilinePaste") == nil ? true : defaults.bool(forKey: "confirmMultilinePaste")
         redactCopies = defaults.bool(forKey: "redactCopies")
+        dimInactivePanes = defaults.object(forKey: "dimInactivePanes") == nil ? true : defaults.bool(forKey: "dimInactivePanes")
         fileOpener = FileOpenerChoice(rawValue: defaults.string(forKey: "fileOpener") ?? "") ?? .leanVSCode
     }
 
@@ -118,7 +121,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "fileOpener", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -142,6 +145,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(secureKeyboardEntry, forKey: "secureKeyboardEntry")
         defaults.set(confirmMultilinePaste, forKey: "confirmMultilinePaste")
         defaults.set(redactCopies, forKey: "redactCopies")
+        defaults.set(dimInactivePanes, forKey: "dimInactivePanes")
         defaults.set(fileOpener.rawValue, forKey: "fileOpener")
     }
 }

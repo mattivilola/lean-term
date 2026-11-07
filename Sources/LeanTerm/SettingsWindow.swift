@@ -14,6 +14,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
+    private let dimInactivePanes = NSButton(checkboxWithTitle: "Dim inactive split panes", target: nil, action: nil)
     private let redactCopies = NSButton(checkboxWithTitle: "Remove sensitive data when copying", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
     private let fileOpener = NSPopUpButton()
@@ -83,9 +84,9 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         preview.wantsLayer = true; preview.layer?.cornerRadius = 10
         preview.heightAnchor.constraint(equalToConstant: 82).isActive = true
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
-        let appearancePage = Self.vertical([appearanceGrid, preview], spacing: 22)
+        let appearancePage = Self.vertical([appearanceGrid, dimInactivePanes, preview], spacing: 22)
 
-        for button in [option, confirmPaste, redactCopies, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [option, confirmPaste, redactCopies, dimInactivePanes, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
         let shortcuts = NSButton(title: "Keyboard Shortcuts…", target: app, action: #selector(AppDelegate.showShortcuts(_:)))
         shortcuts.bezelStyle = .inline; shortcuts.controlSize = .small
         let keyboard = Self.vertical([option, shortcuts], spacing: 6)
@@ -318,6 +319,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         option.state = value.optionAsMeta ? .on : .off
         confirmPaste.state = value.confirmMultilinePaste ? .on : .off
         redactCopies.state = value.redactCopies ? .on : .off
+        dimInactivePanes.state = value.dimInactivePanes ? .on : .off
         closeOnExit.state = value.closeTabOnShellExit ? .on : .off
         quitAfterLast.state = value.quitAfterLastSession ? .on : .off
         restore.state = value.restoreSessions ? .on : .off
@@ -350,6 +352,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.optionAsMeta = option.state == .on
         value.confirmMultilinePaste = confirmPaste.state == .on
         value.redactCopies = redactCopies.state == .on
+        value.dimInactivePanes = dimInactivePanes.state == .on
         value.closeTabOnShellExit = closeOnExit.state == .on
         value.quitAfterLastSession = quitAfterLast.state == .on
         value.restoreSessions = restore.state == .on

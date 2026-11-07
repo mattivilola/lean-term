@@ -240,3 +240,34 @@ symbol and draws a steady scanner line while the session is remote.
 ## Launch path
 
 Sparkle's updater controller is created at launch so the menu item and settings exist, but the updater starts (and its first background check runs) once, five seconds after launch, or earlier if Check for Updates is chosen. Workspace restore opens every saved window with its selected tab immediately and adds the remaining tabs one per run-loop turn at their saved positions, starting each shell as its tab is created.
+
+## Split panes
+
+A tab (`TerminalWindow`) arranges its `TerminalPane`s with `PaneLayout`
+(`LeanTermCore`), a pure, Codable binary tree: leaves are pane ids, splits have an
+axis (`horizontal` = side by side, `vertical` = stacked), a divider ratio and two
+children. Splitting, removing (the sibling takes the parent's place), neighbour
+lookup by geometry in a unit square, equalising and ratio updates are value
+operations on that tree.
+
+The window renders the tree as nested thin `NSSplitView`s (`PaneSplitView`) whose
+leaves are the panes' own views. A structural change rebuilds only the split views
+and reparents the existing pane views; panes and their shells are never recreated.
+Divider drags write their ratio back into the layout through
+`NSSplitViewDelegate`, and the delegate keeps every pane at least about 20 columns
+by 4 rows. The footer stays one per window and shows the focused pane's status and
+size; title, subtitle, tab label and session mark follow the focused pane, while
+the tab's busy, unseen and bell marks aggregate all panes.
+
+The focused pane follows the window's first responder (observed once per window).
+Inactive panes are drawn at 0.8 alpha when `dimInactivePanes` is on and the tab has
+more than one visible pane. Zoom shows only the focused pane's view in the pane area
+(the others keep running, detached from the view tree) and ends on split, close,
+pane selection or a second toggle. Split Right and Split Down start the new shell in
+the focused pane's current folder.
+
+File › Close closes the focused pane when a tab has several (with a confirmation if
+its shell is live) and otherwise the tab as before; the window's close button always
+closes the whole tab. A pane whose shell exits closes itself under the close-on-exit
+preference, and the last pane closes the tab. Workspace saving still records one
+folder per tab, taken from the focused pane.

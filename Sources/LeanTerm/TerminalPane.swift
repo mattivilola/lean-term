@@ -77,6 +77,12 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private var foregroundLeaderPendingExec = false
     private var session = ForegroundSession.local
     private var remoteLocation: (host: String, path: String)?
+    /// The last non-empty title the shell set.
+    private(set) var terminalTitle: String?
+    /// Footer state, shown by the window while this pane is focused.
+    private(set) var statusText = ""
+    private(set) var dimensionsText = ""
+    private(set) var restartHidden = true
     private var fallback: DispatchWorkItem?
     private(set) var state: State = .starting
     private(set) var currentDirectory: String
@@ -96,9 +102,28 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         refreshDirectory()
         return ShellLaunch.localDirectory(from: URL(fileURLWithPath: currentDirectory).absoluteString) ?? NSHomeDirectory()
     }
-    /// The footer text a fresh pane starts with.
-    var initialStatusText: String {
-        launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
+    /// About 20 columns by 4 rows of text plus the insets inside the pane view.
+    var minimumSize: NSSize {
+        let dimensions = terminal.terminalDimensions
+        guard dimensions.cols > 0, dimensions.rows > 0 else { return NSSize(width: 200, height: 80) }
+        let optimal = terminal.getOptimalFrameSize()
+        return NSSize(width: optimal.width / CGFloat(dimensions.cols) * 20 + 28,
+                      height: optimal.height / CGFloat(dimensions.rows) * 4 + 12)
+    }
+
+    /// Inactive split panes are drawn slightly faded.
+    func setDimmed(_ dimmed: Bool) {
+        let alpha: CGFloat = dimmed ? 0.8 : 1
+        if terminal.alphaValue != alpha { terminal.alphaValue = alpha }
+    }
+
+    private func setStatus(_ text: String) {
+        statusText = text
+        host?.pane(self, didSetStatus: text)
+    }
+    private func setRestartHidden(_ hidden: Bool) {
+        restartHidden = hidden
+        host?.pane(self, setRestartHidden: hidden)
     }
 
     init(preferences: Preferences, directory: String?) {
@@ -107,6 +132,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
                               dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
         launch = ShellLaunch(directory: directory)
         currentDirectory = launch.directory
+        statusText = launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
         let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
         let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
         terminal = LeanTerminalView(frame: .zero, font: font,
@@ -321,7 +347,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     func beginShutdown() {
         guard live, state != .closing else { return }
         state = .closing
-        host?.pane(self, didSetStatus: "Closing session…")
+        setStatus("Closing session…")
         terminal.isHidden = false
         terminal.process.terminate(signal: SIGHUP)
         let session = id
@@ -340,11 +366,15 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     // MARK: Process delegate
 
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
-        host?.pane(self, didChangeDimensions: "\(newCols) × \(newRows)")
+        dimensionsText = "\(newCols) × \(newRows)"
+        host?.pane(self, didChangeDimensions: dimensionsText)
     }
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         let clean = String(title.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(120))
-        if !clean.isEmpty { host?.pane(self, didSetTitle: clean) }
+        if !clean.isEmpty {
+            terminalTitle = clean
+            host?.pane(self, didSetTitle: clean)
+        }
     }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
         if let path = ShellLaunch.localDirectory(from: directory) {
@@ -375,8 +405,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         let wasClosing = state == .closing
         state = .exited
         cancelShutdownFallback()
-        host?.pane(self, didSetStatus: exitCode == 0 ? "Session ended" : "Session ended · \(exitCode.map(String.init) ?? "signal")")
-        host?.pane(self, setRestartHidden: false)
+        setStatus(exitCode == 0 ? "Session ended" : "Session ended · \(exitCode.map(String.init) ?? "signal")")
+        setRestartHidden(false)
         // Preserve any outstanding close/quit sheet. Cancel must keep its window.
         if wasClosing || (preferences.closeTabOnShellExit && host?.permitsAutomaticClose(for: self) == true) {
             host?.paneWantsClose(self)
@@ -386,8 +416,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     func processFailedToStart(source: TerminalView, error: LocalProcessError) {
         state = .failed
         resetActivity()
-        host?.pane(self, didSetStatus: "Couldn’t start the shell")
-        host?.pane(self, setRestartHidden: false)
+        setStatus("Couldn’t start the shell")
+        setRestartHidden(false)
     }
 
     func clearScreenAndScrollback() {

@@ -465,6 +465,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func changeFont(by delta: Double) {
         var value = preferences; value.fontSize += delta; updatePreferences(value)
     }
+    @objc private func splitRight(_ sender: Any?) { splitActivePane(.horizontal) }
+    @objc private func splitDown(_ sender: Any?) { splitActivePane(.vertical) }
+    private func splitActivePane(_ axis: PaneLayout.Axis) {
+        guard !terminationPending else { return }
+        activeSession?.split(axis)
+    }
+    @objc private func selectPaneLeft(_ sender: Any?) { activeSession?.selectPane(.left) }
+    @objc private func selectPaneRight(_ sender: Any?) { activeSession?.selectPane(.right) }
+    @objc private func selectPaneAbove(_ sender: Any?) { activeSession?.selectPane(.up) }
+    @objc private func selectPaneBelow(_ sender: Any?) { activeSession?.selectPane(.down) }
+    @objc private func zoomPane(_ sender: Any?) { activeSession?.toggleZoom() }
+    @objc private func equalizePanes(_ sender: Any?) { activeSession?.equalizePanes() }
+    /// File › Close: the focused pane of a split tab, otherwise the window or tab as before.
+    @objc private func closePaneOrTab(_ sender: Any?) {
+        if let session = activeSession, session.panes.count > 1 { session.closeFocusedPane() }
+        else { NSApp.keyWindow?.performClose(sender) }
+    }
     @objc func clearScreenAndScrollback(_ sender: Any?) { activeSession?.focusedPane.clearScreenAndScrollback() }
     @objc private func about(_ sender: Any?) {
         if aboutWindow == nil { aboutWindow = AboutWindow() }
@@ -483,6 +500,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         if [#selector(nextTab), #selector(previousTab), #selector(selectTab), #selector(renameTab)].contains(menuItem.action) {
             return activeSession != nil && !terminationPending
+        }
+        if menuItem.action == #selector(closePaneOrTab) {
+            return NSApp.keyWindow?.styleMask.contains(.closable) == true
+        }
+        if [#selector(splitRight), #selector(splitDown)].contains(menuItem.action) {
+            return activeSession != nil && !terminationPending
+        }
+        if [#selector(selectPaneLeft), #selector(selectPaneRight), #selector(selectPaneAbove), #selector(selectPaneBelow),
+            #selector(zoomPane), #selector(equalizePanes)].contains(menuItem.action) {
+            return (activeSession?.panes.count ?? 0) > 1
         }
         if [#selector(clearScreenAndScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
             return activeSession != nil
@@ -524,7 +551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(file, "New Window", #selector(newWindow), target: self, shortcut: .newWindow)
         add(file, "New Tab", #selector(newTab), target: self, shortcut: .newTab)
         file.addItem(.separator())
-        add(file, "Close", #selector(NSWindow.performClose(_:)), shortcut: .close)
+        add(file, "Close", #selector(closePaneOrTab), target: self, shortcut: .close)
         let edit = group("Edit")
         add(edit, "Undo", Selector(("undo:")), "z")
         add(edit, "Redo", Selector(("redo:")), "z", modifiers: [.command, .shift])
@@ -543,6 +570,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(edit, "Find Previous", #selector(NSResponder.performTextFinderAction(_:)), tag: NSTextFinder.Action.previousMatch.rawValue, shortcut: .findPrevious)
         let terminal = group("Terminal")
         add(terminal, "Clear Screen and Scrollback", #selector(clearScreenAndScrollback), target: self, shortcut: .clearScrollback)
+        terminal.addItem(.separator())
+        add(terminal, "Split Right", #selector(splitRight), target: self, shortcut: .splitRight)
+        add(terminal, "Split Down", #selector(splitDown), target: self, shortcut: .splitDown)
+        add(terminal, "Select Pane Left", #selector(selectPaneLeft), target: self, shortcut: .selectPaneLeft)
+        add(terminal, "Select Pane Right", #selector(selectPaneRight), target: self, shortcut: .selectPaneRight)
+        add(terminal, "Select Pane Above", #selector(selectPaneAbove), target: self, shortcut: .selectPaneAbove)
+        add(terminal, "Select Pane Below", #selector(selectPaneBelow), target: self, shortcut: .selectPaneBelow)
+        add(terminal, "Zoom Pane", #selector(zoomPane), target: self, shortcut: .zoomPane)
+        add(terminal, "Equalize Panes", #selector(equalizePanes), target: self, shortcut: .equalizePanes)
         terminal.addItem(.separator())
         add(terminal, "Previous Prompt", #selector(LeanTerminalView.previousPrompt(_:)), shortcut: .previousPrompt)
         add(terminal, "Next Prompt", #selector(LeanTerminalView.nextPrompt(_:)), shortcut: .nextPrompt)

@@ -46,6 +46,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
     case newWindow, newTab, close, previousTab, nextTab, find, findNext, findPrevious
     case clearScrollback, largerText, smallerText, defaultText, settings, shortcuts, about, updates, quit
     case copyWithoutSensitiveData, previousPrompt, nextPrompt, selectCommandOutput
+    case splitRight, splitDown, selectPaneLeft, selectPaneRight, selectPaneAbove, selectPaneBelow, zoomPane, equalizePanes
     case renameTab, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, lastTab
 
     public var title: String {
@@ -72,6 +73,14 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .nextPrompt: "Next Prompt"
         case .selectCommandOutput: "Select Command Output"
         case .renameTab: "Rename Tab"
+        case .splitRight: "Split Right"
+        case .splitDown: "Split Down"
+        case .selectPaneLeft: "Select Pane Left"
+        case .selectPaneRight: "Select Pane Right"
+        case .selectPaneAbove: "Select Pane Above"
+        case .selectPaneBelow: "Select Pane Below"
+        case .zoomPane: "Zoom Pane"
+        case .equalizePanes: "Equalize Panes"
         case .tab1: "Select Tab 1"
         case .tab2: "Select Tab 2"
         case .tab3: "Select Tab 3"
@@ -105,6 +114,14 @@ public enum ShortcutAction: String, CaseIterable, Sendable {
         case .nextPrompt: .init("\u{F701}")
         case .selectCommandOutput: .init("a", [.command, .shift])
         case .renameTab: .init("r", [.command, .shift])
+        case .splitRight: .init("d")
+        case .splitDown: .init("d", [.command, .shift])
+        case .selectPaneLeft: .init("\u{F702}", [.command, .option])
+        case .selectPaneRight: .init("\u{F703}", [.command, .option])
+        case .selectPaneAbove: .init("\u{F700}", [.command, .option])
+        case .selectPaneBelow: .init("\u{F701}", [.command, .option])
+        case .zoomPane: .init("\r", [.command, .shift])
+        case .equalizePanes: .init("=", [.command, .control])
         case .tab1: .init("1")
         case .tab2: .init("2")
         case .tab3: .init("3")
@@ -146,7 +163,7 @@ public struct ShortcutConfiguration: Equatable, Sendable {
         if let override = overrides[action] { return override }
         let binding = action.defaultBinding
         // Existing personal bindings take precedence over newly introduced tab defaults.
-        let newTabActions: Set<ShortcutAction> = [.copyWithoutSensitiveData, .previousPrompt, .nextPrompt, .selectCommandOutput, .renameTab, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
+        let newTabActions: Set<ShortcutAction> = [.copyWithoutSensitiveData, .previousPrompt, .nextPrompt, .selectCommandOutput, .renameTab, .splitRight, .splitDown, .selectPaneLeft, .selectPaneRight, .selectPaneAbove, .selectPaneBelow, .zoomPane, .equalizePanes, .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .lastTab]
         if newTabActions.contains(action), let binding, overrides.values.contains(binding) { return nil }
         return binding
     }
