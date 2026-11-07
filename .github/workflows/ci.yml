@@ -24,6 +24,7 @@ jobs:
           python3 -m unittest discover -s benchmarks -p 'test_*.py'
           python3 -m unittest script.test_release
       - name: Test
-        run: ./script/build_and_run.sh --test
+        # The scrollback redaction budget applies to the optimized app.
+        run: ./script/build_and_run.sh --test -c release
       - name: Build Release app
         run: ./script/build_and_run.sh --build-only
