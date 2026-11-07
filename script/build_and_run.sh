@@ -18,7 +18,7 @@ SPM=(--cache-path "$ROOT_DIR/.cache/spm" --config-path "$ROOT_DIR/.cache/config"
 if [[ "${SWIFTPM_DISABLE_SANDBOX:-0}" == 1 ]]; then SPM+=(--disable-sandbox); fi
 swift package "${SPM[@]}" resolve
 python3 script/prepare_dependency.py
-if [[ "$MODE" == --test ]]; then swift test "${SPM[@]}"; exit; fi
+if [[ "$MODE" == --test ]]; then swift test "${SPM[@]}" "$@"; exit; fi
 swift build "${SPM[@]}" -c release --product "$PRODUCT"
 if [[ "$PRODUCT" == LeanTerm ]]; then
   APP="$ROOT_DIR/dist/Lean Term.app"
