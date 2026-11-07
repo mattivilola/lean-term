@@ -400,6 +400,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func updatePreferences(_ value: Preferences) {
         var value = value
         value.fontSize = Preferences.validFontSize(value.fontSize)
+        value.scrollbackLines = Preferences.validScrollback(value.scrollbackLines)
         guard value != preferences else { return }
         preferences = value
         if !value.restoreSessions { SessionWorkspace.clear(in: defaults) }

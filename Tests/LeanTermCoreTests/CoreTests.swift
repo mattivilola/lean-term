@@ -35,9 +35,14 @@ import Testing
     #expect(Preferences(defaults: defaults).appearance == .system)
     #expect(Preferences(defaults: defaults).fontSize == 32)
     #expect(Preferences.validFontSize(.nan) == 13)
+    #expect(Preferences.validScrollback(0) == 1_000)
+    #expect(Preferences.validScrollback(7_500) == 10_000)
+    #expect(Preferences.validScrollback(2_000_000) == 100_000)
+    defaults.set(12_345, forKey: "scrollbackLines")
+    #expect(Preferences(defaults: defaults).scrollbackLines == 10_000)
     var value = Preferences()
     value.restoreSessions = true
-    value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.optionAsMeta = true
+    value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)

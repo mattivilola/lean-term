@@ -17,6 +17,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let dimInactivePanes = NSButton(checkboxWithTitle: "Dim inactive split panes", target: nil, action: nil)
     private let redactCopies = NSButton(checkboxWithTitle: "Remove sensitive data when copying", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
+    private let scrollback = NSPopUpButton()
     private let fileOpener = NSPopUpButton()
     private let getLeanVSCode = NSButton(title: "Get Lean VS Code…", target: nil, action: nil)
     private let howToIntegrate = NSButton(title: "How to enable…", target: nil, action: nil)
@@ -106,6 +107,11 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         defaultStatus.font = .systemFont(ofSize: 11); defaultStatus.textColor = .secondaryLabelColor
         let defaultTerminal = Self.vertical([makeDefault, defaultStatus,
             Self.note("Finder: right-click a folder › Services › New Lean Term Tab Here (enable it in System Settings › Keyboard › Keyboard Shortcuts › Services if missing). Lean VS Code: set \"terminal.external.osxExec\" to \"Lean Term.app\".")], spacing: 7)
+        scrollback.addItems(withTitles: Preferences.scrollbackChoices.map { $0.formatted(.number.grouping(.automatic)) + " lines" })
+        scrollback.target = self; scrollback.action = #selector(changed)
+        scrollback.setAccessibilityLabel("Scrollback")
+        let scrollbackRow = Self.vertical([scrollback,
+            Self.note("Each tab keeps up to this many lines. A full 10,000-line history of 120-column text uses about 20 MB; larger values use proportionally more memory.")], spacing: 7)
         fileOpener.target = self; fileOpener.action = #selector(fileOpenerChosen)
         fileOpener.setAccessibilityLabel("Open files with")
         getLeanVSCode.target = self; getLeanVSCode.action = #selector(openLeanVSCodeSite)
@@ -124,6 +130,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             [NSTextField(labelWithString: "Default terminal"), defaultTerminal]
         ])
         let terminalPage = Self.grid([
+            [NSTextField(labelWithString: "Scrollback"), scrollbackRow],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
             [NSTextField(labelWithString: "Copying"), Self.vertical([redactCopies,
                 Self.note("Masks passwords, API keys, tokens, private keys, card numbers, IBANs, personal identity numbers and email addresses as [REMOVED:…]. ⌥⌘C always copies without them.")], spacing: 7)],
@@ -341,6 +348,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         font.selectItem(withTitle: value.fontName)
         size.doubleValue = value.fontSize; sizeLabel.stringValue = "\(Int(value.fontSize)) pt"
         cursor.selectItem(withTitle: value.cursor.title)
+        scrollback.selectItem(at: Preferences.scrollbackChoices.firstIndex(of: value.scrollbackLines) ?? 2)
         option.state = value.optionAsMeta ? .on : .off
         confirmPaste.state = value.confirmMultilinePaste ? .on : .off
         redactCopies.state = value.redactCopies ? .on : .off
@@ -374,6 +382,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.fontName = font.titleOfSelectedItem ?? "SF Mono"
         value.fontSize = size.doubleValue.rounded()
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
+        value.scrollbackLines = Preferences.scrollbackChoices[max(0, scrollback.indexOfSelectedItem)]
         value.optionAsMeta = option.state == .on
         value.confirmMultilinePaste = confirmPaste.state == .on
         value.redactCopies = redactCopies.state == .on

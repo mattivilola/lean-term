@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Configurable scrollback in Settings › Terminal (1,000 to 100,000 lines), applied to open tabs immediately.
+- Settings regrouped into Appearance, General, Terminal, Activity, Hosts and Updates pages.
+- New tabs reliably open in the current shell folder, including right after a shell starts and while Lean Term is in the background.
+
 ## 0.5.2 — Path hover hints
 
 - Holding ⌘ over a clickable path shows an animated phosphor highlight and a hint of what a click will do.

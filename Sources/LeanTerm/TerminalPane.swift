@@ -136,7 +136,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
         let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
         terminal = LeanTerminalView(frame: .zero, font: font,
-            options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: Preferences.scrollbackLines))
+            options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: preferences.scrollbackLines))
         super.init()
         terminal.processDelegate = self
         installOutputHandler()
@@ -318,7 +318,9 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     // MARK: Preferences and theme
 
     func apply(_ value: Preferences) {
+        let scrollbackChanged = value.scrollbackLines != preferences.scrollbackLines
         preferences = value
+        if scrollbackChanged { terminal.changeScrollback(value.scrollbackLines) }
         if !value.showTabActivity { markSeen() }
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }

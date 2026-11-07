@@ -78,7 +78,9 @@ public struct Preferences: Equatable, Sendable {
     /// Slightly dims split panes other than the focused one.
     public var dimInactivePanes = true
     public var fileOpener = FileOpenerChoice.leanVSCode
-    public static let scrollbackLines = 10_000
+    /// Lines of history each terminal keeps; always one of `scrollbackChoices`.
+    public var scrollbackLines = 10_000
+    public static let scrollbackChoices = [1_000, 5_000, 10_000, 50_000, 100_000]
 
     public init() {}
 
@@ -88,6 +90,7 @@ public struct Preferences: Equatable, Sendable {
         fontName = defaults.string(forKey: "fontName") ?? "SF Mono"
         let size = defaults.object(forKey: "fontSize") as? Double ?? 13
         fontSize = Self.validFontSize(size)
+        scrollbackLines = Self.validScrollback(defaults.object(forKey: "scrollbackLines") as? Int ?? 10_000)
         cursor = Cursor(rawValue: defaults.string(forKey: "cursor") ?? "") ?? .bar
         optionAsMeta = defaults.bool(forKey: "optionAsMeta")
         showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
@@ -118,10 +121,15 @@ public struct Preferences: Equatable, Sendable {
         value.isFinite ? min(32, max(10, value)) : 13
     }
 
+    /// Snaps any value to the nearest allowed scrollback size; ties go to the larger one.
+    public static func validScrollback(_ value: Int) -> Int {
+        scrollbackChoices.min { (abs($0 - value), -$0) < (abs($1 - value), -$1) } ?? 10_000
+    }
+
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -131,6 +139,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(palette.rawValue, forKey: "palette")
         defaults.set(fontName, forKey: "fontName")
         defaults.set(Self.validFontSize(fontSize), forKey: "fontSize")
+        defaults.set(Self.validScrollback(scrollbackLines), forKey: "scrollbackLines")
         defaults.set(cursor.rawValue, forKey: "cursor")
         defaults.set(optionAsMeta, forKey: "optionAsMeta")
         defaults.set(showResourceUsage, forKey: "showResourceUsage")

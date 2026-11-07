@@ -161,7 +161,7 @@ when updating the dependency. Upstream's license is retained in
 
 ## Scope
 
-This first usable v1 includes local shells, native windows/tabs, Find, bounded
+This first usable v1 includes local shells, native windows/tabs, Find, configurable
 scrollback, copy/paste, font/palette/cursor settings and System/Light/Dark following.
 Splits, editable TOML configuration, hot reload, metrics,
 restoration and startup commands remain roadmap items. No telemetry, AI service,
@@ -199,6 +199,10 @@ a configured tab only after reap/output drain, while an outstanding confirmation
 sheet keeps its window. Cancel retains output from a shell that finished during
 the quit prompt. Last-session quit is queued once, rechecks for newly opened
 sessions, and uses normal NSApplication termination so updater behavior is kept.
+
+Scrollback is the `scrollbackLines` preference (1,000 to 100,000 lines, default 10,000; Settings › Terminal).
+New panes start with it and changes reach open panes through SwiftTerm's public `changeScrollback`;
+shrinking trims the oldest lines.
 
 Cmd-K feeds local erase-display/cursor-home operations and discards normal
 scrollback through SwiftTerm’s supported APIs. It never sends a key or command

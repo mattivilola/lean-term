@@ -22,7 +22,7 @@ You can also build from source without a signing account.
 - Native macOS windows and tabs, with independent terminal sessions.
 - Short folder labels, editable tab names, direct numbered switching and optional workspace reopening.
 - Unicode text, terminal applications, selection, copy/paste and built-in Find.
-- Bounded 10,000-line scrollback; clear screen and history without sending input to a program.
+- Configurable scrollback (1,000 to 100,000 lines, default 10,000); clear screen and history without sending input to a program.
 - System/Light/Dark appearance, Forest and Graphite palettes, font size/family,
   cursor shape and optional Option-as-Meta, in a compact visual settings window.
   SF Mono Regular 13 is the default; existing saved font choices are preserved.
