@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 — Split panes and command palette
 
 - Split panes: Terminal › Split Right (⌘D) and Split Down (⇧⌘D), ⌥⌘arrows to move between panes, ⇧⌘↩ to zoom one and ⌃⌘= to equalise; ⌘W closes the focused pane, and inactive panes dim slightly (Settings › Appearance).
 - Reopen windows and tabs on launch now also restores each tab's split layout and focused pane.
