@@ -58,6 +58,20 @@ enum FileOpener {
         }
     }
 
+    /// What `open` will do with `file`, including its fallback to the default app; the line only where it is honoured.
+    static func hoverHint(for file: ResolvedPath, with choice: Preferences.FileOpenerChoice) -> String {
+        switch choice {
+        case .leanVSCode:
+            guard leanVSCodeURL != nil else { return "Open in default app" }
+            return "Open in Lean VS Code" + (file.line.map { " · line \($0)" } ?? "")
+        case .system:
+            return "Open in default app"
+        case .app(let identifier):
+            guard let app = applicationURL(for: identifier) else { return "Open in default app" }
+            return "Open with \(displayName(ofApplicationAt: app))"
+        }
+    }
+
     /// `lean-code://file/abs/path:line:column`, the same shape as VS Code's `vscode://file/…`.
     static func leanVSCodeLink(for file: URL, line: Int, column: Int?) -> URL? {
         guard let path = file.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }

@@ -87,6 +87,13 @@ system while idle; hovering with ⌘ held checks at most once per hovered token 
 for existing paths. URLs and OSC 8 links stay with SwiftTerm; the release reaches SwiftTerm without ⌘ for handled
 paths so its own cwd-relative opening stays out. Remote tabs are excluded (paths live on the other machine).
 
+An existing path under a ⌘-held pointer also gets a phosphor highlight: `PathDetection.match` returns the token's
+character range and `column(ofCharacterOffset:)` maps it back to terminal columns, so `PathHighlightView` (one
+lazily created, mouse-transparent, never-drawing layer view above the terminal) covers exactly the token's cells on
+the hovered row. Fade, underline growth, slide to the next token and the delayed action hint are Core Animation
+transactions plus one cancellable work item; Reduce Motion keeps only fades. The highlight fades out when ⌘ is
+released, the pointer leaves, on click, scroll, losing key status or the pane's coalesced output notification.
+
 Files open with Settings › Behavior › "Open files with": Lean VS Code (default, `lean-code://file<path>:<line>:<col>`;
 falls back to the default app when not installed), the default app, or a chosen app, stored as
 `Preferences.fileOpener`. A folder types `cd -- <escaped path>` when a local shell is at its prompt and otherwise,

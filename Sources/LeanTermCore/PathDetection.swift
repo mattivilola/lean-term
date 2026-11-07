@@ -13,6 +13,18 @@ public struct DetectedPath: Equatable, Sendable {
     }
 }
 
+/// A detected path with the characters of the line it was read from, including a `:line:col` or `(l,c)` suffix.
+public struct PathMatch: Equatable, Sendable {
+    public let path: DetectedPath
+    /// Character offsets (not terminal columns) of the whole token in the line.
+    public let characters: Range<Int>
+
+    public init(path: DetectedPath, characters: Range<Int>) {
+        self.path = path
+        self.characters = characters
+    }
+}
+
 /// Finds paths in one line of terminal text. Pure text work: whether the path exists is decided by the caller at click time.
 public enum PathDetection {
     private static let opening = Set("\"'`([{<")
@@ -22,6 +34,11 @@ public enum PathDetection {
 
     /// The path under the character at `offset` (a character index, not a terminal column; see `characterOffset`).
     public static func path(in line: String, at offset: Int) -> DetectedPath? {
+        match(in: line, at: offset)?.path
+    }
+
+    /// Like `path(in:at:)`, with the character range the highlighted token covers.
+    public static func match(in line: String, at offset: Int) -> PathMatch? {
         let characters = Array(line)
         guard characters.indices.contains(offset), !characters[offset].isWhitespace else { return nil }
         var start = offset
@@ -30,7 +47,8 @@ public enum PathDetection {
         while end < characters.count, !characters[end].isWhitespace { end += 1 }
         let token = String(characters[start..<end])
         let rest = String(characters[end...])
-        return parse(token: token, rest: rest)
+        guard let parsed = parse(token: token, rest: rest) else { return nil }
+        return PathMatch(path: parsed.path, characters: (start + parsed.range.lowerBound)..<(start + parsed.range.upperBound))
     }
 
     /// The index of the character displayed at terminal `column`, counting East Asian wide characters as two columns.
@@ -41,6 +59,16 @@ public enum PathDetection {
             if column < used { return index }
         }
         return line.count + max(0, column - used)
+    }
+
+    /// The terminal column where the character at `offset` starts, the inverse of `characterOffset`.
+    public static func column(ofCharacterOffset offset: Int, in line: String) -> Int {
+        var used = 0
+        for (index, character) in line.enumerated() {
+            if index == offset { return used }
+            used += columns(of: character)
+        }
+        return used + max(0, offset - line.count)
     }
 
     /// `src/x` for `a/src/x` or `b/src/x`, as git prints in diffs.
@@ -60,11 +88,14 @@ public enum PathDetection {
         }
     }
 
-    private static func parse(token original: String, rest: String) -> DetectedPath? {
+    /// The path and the character range of the token (relative to `original`) that includes its location suffix.
+    private static func parse(token original: String, rest: String) -> (path: DetectedPath, range: Range<Int>)? {
         var text = Substring(original)
         var line: Int?
         var column: Int?
         while let first = text.first, opening.contains(first) { text = text.dropFirst() }
+        let startIndex = text.startIndex
+        var locationEnd: String.Index?
         var changed = true
         while changed, let last = text.last {
             changed = false
@@ -72,6 +103,7 @@ public enum PathDetection {
                 text = text.dropLast(); changed = true
             } else if let opener = closing[last] {
                 if let match = locationInParentheses(text) {
+                    locationEnd = text.endIndex
                     text = match.path; line = match.line; column = match.column
                     break
                 }
@@ -79,6 +111,7 @@ public enum PathDetection {
             }
         }
         if line == nil, let match = trailingLocation(text) {
+            locationEnd = text.endIndex
             text = match.path; line = match.line; column = match.column
             while let last = text.last, trailingPunctuation.contains(last) || quotes.contains(last) { text = text.dropLast() }
         }
@@ -88,7 +121,9 @@ public enum PathDetection {
             let tail = original[end...] + rest
             if let match = tail.firstMatch(of: /^["']?,\s*line\s+(\d+)/), let value = Int(match.1) { line = value }
         }
-        return DetectedPath(path: String(text), line: line, column: column)
+        let range = original.distance(from: original.startIndex, to: startIndex)
+            ..< original.distance(from: original.startIndex, to: locationEnd ?? text.endIndex)
+        return (DetectedPath(path: String(text), line: line, column: column), range)
     }
 
     /// A trailing `.` that continues `..` or `/.` is part of the path, not punctuation.

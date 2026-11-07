@@ -206,6 +206,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
+                    self.terminal.outputArrived()
                     self.host?.paneDidReceiveOutput(self)
                 }
             }
@@ -337,6 +338,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         terminal.selectedTextForegroundColor = theme.foreground
         scanner.applyAccent(theme.phosphor)
         terminal.progressBarColor = theme.phosphor
+        terminal.pathHighlightColors = PathHighlightColors(phosphor: theme.phosphor, background: theme.background,
+                                                           foreground: theme.foreground, dark: theme.dark)
         renderActivity()
     }
 
@@ -452,6 +455,11 @@ extension TerminalPane: TerminalPathDelegate {
 
     func resolvePath(_ detected: DetectedPath) -> ResolvedPath? {
         FileOpener.resolve(detected, relativeTo: directoryForNewSession)
+    }
+
+    func hoverHint(for path: ResolvedPath) -> String {
+        guard path.isDirectory else { return FileOpener.hoverHint(for: path, with: preferences.fileOpener) }
+        return state == .running && !refreshForeground() && !session.isRemote ? "cd here · ⇧ new tab" : "Open in new tab"
     }
 
     func openPath(_ path: ResolvedPath, inNewTab: Bool) {

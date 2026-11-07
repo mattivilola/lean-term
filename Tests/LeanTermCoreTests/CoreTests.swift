@@ -198,6 +198,13 @@ import Testing
     #expect(PathDetection.characterOffset(ofColumn: 5, in: "日本ab") == 3)
     #expect(PathDetection.characterOffset(ofColumn: 4, in: "日本ab") == 2)
     #expect(PathDetection.characterOffset(ofColumn: 3, in: "日本ab") == 1)
+    #expect(PathDetection.column(ofCharacterOffset: 2, in: "日本ab") == 4)
+    #expect(PathDetection.column(ofCharacterOffset: 4, in: "日本ab") == 6)
+    // The highlighted token includes a location suffix but not surrounding punctuation.
+    #expect(PathDetection.match(in: "error: /a/b.swift:12:5: oops", at: 10)?.characters == 7..<22)
+    #expect(PathDetection.match(in: "at (./lib/x.ts:7)", at: 6)?.characters == 4..<16)
+    #expect(PathDetection.match(in: "Foo.java(12,5) failed", at: 1)?.characters == 0..<14)
+    #expect(PathDetection.match(in: "'../up/file.c'.", at: 4)?.characters == 1..<13)
 }
 
 @Test func commandOutputIsFoundFromViewportOrLiveBottom() {

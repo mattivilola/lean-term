@@ -10,6 +10,8 @@ protocol TerminalPathDelegate: AnyObject {
     var pathsAreRemote: Bool { get }
     func resolvePath(_ detected: DetectedPath) -> ResolvedPath?
     func openPath(_ path: ResolvedPath, inNewTab: Bool)
+    /// What a click on `path` will do, for the hover hint.
+    func hoverHint(for path: ResolvedPath) -> String
 }
 
 /// Terminal view that reports the bell to the app without making any sound,
@@ -31,8 +33,14 @@ final class LeanTerminalView: LocalProcessTerminalView {
     weak var pathDelegate: TerminalPathDelegate?
     private var pressPoint: NSPoint?
     /// The hovered token whose existence was already checked, so each token costs one file-system check.
-    private var hoverCheck: (path: DetectedPath, row: Int, exists: Bool)?
+    private var hoverCheck: (path: DetectedPath, row: Int, resolved: ResolvedPath?, hint: String?)?
     private var handCursorShown = false
+    /// Created on the first ⌘-hover over an existing path.
+    private var pathHighlight: PathHighlightView?
+    var pathHighlightColors: PathHighlightColors? {
+        didSet { if let pathHighlightColors { pathHighlight?.applyColors(pathHighlightColors) } }
+    }
+    private var resignObserver: NSObjectProtocol?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -181,6 +189,7 @@ final class LeanTerminalView: LocalProcessTerminalView {
 
     override func mouseDown(with event: NSEvent) {
         pressPoint = event.locationInWindow
+        hideHighlight()
         super.mouseDown(with: event)
     }
 
@@ -213,6 +222,9 @@ final class LeanTerminalView: LocalProcessTerminalView {
 
     private func installHoverMonitor() {
         guard flagsMonitor == nil else { return }
+        resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hideHighlight() }
+        }
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             MainActor.assumeIsolated { self?.commandChanged(event.modifierFlags.contains(.command)) }
             return event
@@ -222,16 +234,34 @@ final class LeanTerminalView: LocalProcessTerminalView {
     private func removeHoverMonitors() {
         for monitor in [flagsMonitor, moveMonitor] { if let monitor { NSEvent.removeMonitor(monitor) } }
         flagsMonitor = nil; moveMonitor = nil
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        resignObserver = nil
+        hoverCheck = nil
+        hideHighlight()
+    }
+
+    /// Fades the highlight out. Does nothing when none is showing.
+    private func hideHighlight() { pathHighlight?.hide() }
+
+    /// New output arrived in this pane (called once per burst on the main thread): the highlighted row may have changed.
+    func outputArrived() {
+        guard let pathHighlight, !pathHighlight.isHidden else { return }
+        pathHighlight.hide()
         hoverCheck = nil
     }
 
     private func commandChanged(_ command: Bool) {
         guard let window, window.isKeyWindow else { return }
         if command, moveMonitor == nil {
-            moveMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+            moveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .scrollWheel]) { [weak self] event in
                 MainActor.assumeIsolated {
-                    if let self, event.window === self.window {
-                        self.updateHoverCursor(command: true, windowPoint: event.locationInWindow)
+                    if let self, event.window === self.window, self.window?.isKeyWindow == true {
+                        // Scrolling moves the text under the pointer; the next move shows the highlight again.
+                        if event.type == .scrollWheel {
+                            self.hideHighlight()
+                        } else {
+                            self.updateHoverCursor(command: true, windowPoint: event.locationInWindow)
+                        }
                     }
                 }
                 return event
@@ -240,46 +270,74 @@ final class LeanTerminalView: LocalProcessTerminalView {
             if let moveMonitor { NSEvent.removeMonitor(moveMonitor) }
             moveMonitor = nil
             hoverCheck = nil
+            hideHighlight()
         }
         updateHoverCursor(command: command, windowPoint: window.mouseLocationOutsideOfEventStream)
     }
 
-    /// Pointing hand over an existing path while ⌘ is held. Does nothing without ⌘.
+    /// Pointing hand and phosphor highlight over an existing path while ⌘ is held. Does nothing without ⌘.
     private func updateHoverCursor(command: Bool, windowPoint: NSPoint) {
         guard command, let pathDelegate, !pathDelegate.pathsAreRemote,
-              let (detected, row) = detectedPathAndRow(atWindowPoint: windowPoint) else {
-            if handCursorShown { handCursorShown = false; NSCursor.iBeam.set() }
+              let hovered = pathMatch(atWindowPoint: windowPoint) else {
+            clearHover()
             return
         }
-        if hoverCheck?.path != detected || hoverCheck?.row != row {
-            hoverCheck = (detected, row, pathDelegate.resolvePath(detected) != nil)
+        let detected = hovered.match.path
+        if hoverCheck?.path != detected || hoverCheck?.row != hovered.row {
+            let resolved = pathDelegate.resolvePath(detected)
+            hoverCheck = (detected, hovered.row, resolved, resolved.map { pathDelegate.hoverHint(for: $0) })
         }
-        if hoverCheck?.exists == true {
-            handCursorShown = true
-            NSCursor.pointingHand.set()
-        } else if handCursorShown {
-            handCursorShown = false
-            NSCursor.iBeam.set()
+        guard let hint = hoverCheck?.hint else {
+            clearHover()
+            return
         }
+        handCursorShown = true
+        NSCursor.pointingHand.set()
+        showHighlight(for: hovered, hint: hint)
+    }
+
+    private func clearHover() {
+        if handCursorShown { handCursorShown = false; NSCursor.iBeam.set() }
+        hideHighlight()
+    }
+
+    private func showHighlight(for hovered: (match: PathMatch, row: Int, text: String), hint: String) {
+        guard let metrics = cellMetrics() else { return }
+        let columns = PathDetection.column(ofCharacterOffset: hovered.match.characters.lowerBound, in: hovered.text)
+            ..< PathDetection.column(ofCharacterOffset: hovered.match.characters.upperBound, in: hovered.text)
+        let end = min(columns.upperBound, metrics.cols)
+        guard columns.lowerBound < end else { return }
+        let rect = CGRect(x: CGFloat(columns.lowerBound) * metrics.width,
+                          y: frame.height - CGFloat(hovered.row + 1) * metrics.height,
+                          width: CGFloat(end - columns.lowerBound) * metrics.width, height: metrics.height)
+        let highlight: PathHighlightView
+        if let existing = pathHighlight {
+            highlight = existing
+        } else {
+            guard let colors = pathHighlightColors else { return }
+            highlight = PathHighlightView(colors: colors)
+            highlight.frame = bounds
+            addSubview(highlight)
+            pathHighlight = highlight
+        }
+        highlight.show(rect: rect, hint: hint)
     }
 
     private func detectedPath(atWindowPoint point: NSPoint) -> DetectedPath? {
-        detectedPathAndRow(atWindowPoint: point)?.0
+        pathMatch(atWindowPoint: point)?.match.path
     }
 
-    private func detectedPathAndRow(atWindowPoint windowPoint: NSPoint) -> (DetectedPath, Int)? {
+    private func pathMatch(atWindowPoint windowPoint: NSPoint) -> (match: PathMatch, row: Int, text: String)? {
         guard let cell = gridCell(atWindowPoint: windowPoint),
               let text = visibleRowsText(cell.row..<(cell.row + 1)).first else { return nil }
         let offset = PathDetection.characterOffset(ofColumn: cell.col, in: text)
-        guard let detected = PathDetection.path(in: text, at: offset) else { return nil }
-        return (detected, cell.row)
+        guard let match = PathDetection.match(in: text, at: offset) else { return nil }
+        return (match, cell.row, text)
     }
 
-    /// The screen cell under a window point, using the same cell metrics SwiftTerm lays out with.
-    private func gridCell(atWindowPoint windowPoint: NSPoint) -> (col: Int, row: Int)? {
-        let point = convert(windowPoint, from: nil)
-        guard bounds.contains(point), let dimensions = terminalInputStateSnapshot()?.dimensions,
-              dimensions.cols > 0, dimensions.rows > 0 else { return nil }
+    /// The cell size and grid dimensions SwiftTerm lays out with, derived from its public API.
+    private func cellMetrics() -> (width: CGFloat, height: CGFloat, cols: Int, rows: Int)? {
+        guard let dimensions = terminalInputStateSnapshot()?.dimensions, dimensions.cols > 0, dimensions.rows > 0 else { return nil }
         var character: UniChar = 0x57
         var glyph: CGGlyph = 0
         guard CTFontGetGlyphsForCharacters(font, &character, &glyph, 1) else { return nil }
@@ -287,8 +345,15 @@ final class LeanTerminalView: LocalProcessTerminalView {
         let cellWidth = max(1, (font.advancement(forGlyph: NSGlyph(glyph)).width * scale).rounded() / scale)
         let cellHeight = getOptimalFrameSize().height / CGFloat(dimensions.rows)
         guard cellHeight > 0 else { return nil }
-        let col = min(max(0, Int(point.x / cellWidth)), dimensions.cols - 1)
-        let row = min(max(0, Int((frame.height - point.y) / cellHeight)), dimensions.rows - 1)
+        return (cellWidth, cellHeight, dimensions.cols, dimensions.rows)
+    }
+
+    /// The screen cell under a window point, using the same cell metrics SwiftTerm lays out with.
+    private func gridCell(atWindowPoint windowPoint: NSPoint) -> (col: Int, row: Int)? {
+        let point = convert(windowPoint, from: nil)
+        guard bounds.contains(point), let metrics = cellMetrics() else { return nil }
+        let col = min(max(0, Int(point.x / metrics.width)), metrics.cols - 1)
+        let row = min(max(0, Int((frame.height - point.y) / metrics.height)), metrics.rows - 1)
         return (col, row)
     }
 

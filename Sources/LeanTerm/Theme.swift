@@ -16,7 +16,7 @@ struct TerminalTheme {
     let accent: NSColor
     /// Brand CRT phosphor from the emerald `>_` icon, independent of palette.
     let phosphor: NSColor
-    private let dark: Bool
+    let dark: Bool
     /// Amber CRT phosphor for remote and root marks, independent of palette.
     let amber: NSColor
     let selection: NSColor
