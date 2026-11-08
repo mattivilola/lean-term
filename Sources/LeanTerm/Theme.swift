@@ -19,6 +19,8 @@ struct TerminalTheme {
     let dark: Bool
     /// Amber CRT phosphor for remote and root marks, independent of palette.
     let amber: NSColor
+    /// Failed commands: margin bars, scanner pulse and the finished ring.
+    let failure: NSColor
     let selection: NSColor
     let ansi: [SwiftTerm.Color]
 
@@ -30,6 +32,7 @@ struct TerminalTheme {
         accent = NSColor(hex: dark ? (forest ? 0x95e6af : 0x9cc3f5) : (forest ? 0x24693d : 0x305b96))
         phosphor = NSColor(hex: dark ? 0xb9f6c6 : 0x008a48)
         amber = NSColor(hex: dark ? 0xffb547 : 0x9a5b00)
+        failure = NSColor(hex: dark ? 0xff6b6b : 0xc62828)
         selection = NSColor(hex: dark ? (forest ? 0x304c3c : 0x34455f) : (forest ? 0xd1e6d5 : 0xd3e0f3))
         let colors: [UInt32] = dark
             ? [0x202923, 0xf08080, 0x9bd4a2, 0xe8ca8a, 0x91b8ed, 0xc2a1df, 0x89cfcd, 0xd8e2dc,
@@ -41,6 +44,15 @@ struct TerminalTheme {
 }
 
 extension TerminalTheme {
+    /// Margin bar colour: phosphor for success, red for failure, amber for an interrupted command.
+    func commandColor(_ outcome: CommandOutcome) -> NSColor {
+        switch outcome {
+        case .succeeded: phosphor.withAlphaComponent(0.75)
+        case .failed: failure
+        case .interrupted: amber
+        }
+    }
+
     /// Tab and scanner tint for a host colour rule.
     func hostColor(_ color: HostColor) -> NSColor {
         switch color {

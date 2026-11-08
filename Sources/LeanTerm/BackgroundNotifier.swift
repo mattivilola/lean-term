@@ -1,4 +1,5 @@
 import AppKit
+import LeanTermCore
 import UserNotifications
 
 /// Opt-in notifications and Dock badge for activity you missed. Touches the notification centre only
@@ -37,11 +38,12 @@ final class BackgroundNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func postFinished(sessionID: UUID, title: String, duration: TimeInterval) {
+    /// `exitCode` is the status the shell reported for the command, when it did within a moment of its end.
+    func postFinished(sessionID: UUID, title: String, duration: TimeInterval, exitCode: Int?) {
         guard enabled, authorized else { return }
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = "Finished after " + Self.durationText(duration)
+        content.body = CommandOutcome.notificationBody(exitCode: exitCode, duration: Self.durationText(duration))
         content.userInfo = ["session": sessionID.uuidString]
         let request = UNNotificationRequest(identifier: sessionID.uuidString, content: content, trigger: nil)
         let center = UNUserNotificationCenter.current()

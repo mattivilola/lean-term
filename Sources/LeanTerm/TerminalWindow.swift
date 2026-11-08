@@ -217,7 +217,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         } else if panes.contains(where: { $0.activityIndicator != .idle }) {
             tabMark.setMark(.running)
         } else {
-            tabMark.setMark(panes.contains(where: \.finishedUnseen) ? .done : .hidden)
+            tabMark.setMark(panes.contains(where: \.finishedFailedUnseen) ? .failed : (panes.contains(where: \.finishedUnseen) ? .done : .hidden))
         }
         tabMark.setAttention(panes.contains(where: \.bellUnseen))
         tabMark.setSession(focusedPane.sessionMark)
@@ -245,7 +245,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
         quickBorder?.layer?.backgroundColor = theme.phosphor.withAlphaComponent(0.35).cgColor
-        tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber)
+        tabMark.applyColors(phosphor: theme.phosphor, amber: theme.amber, failure: theme.failure)
         for pane in panes { pane.applyTheme(theme) }
         for splitView in splitViews { splitView.dividerTint = theme.foreground.withAlphaComponent(0.18) }
     }
@@ -637,8 +637,8 @@ extension TerminalWindow: TerminalPaneHost {
     func paneDidChangeActivity(_ pane: TerminalPane) { renderActivity() }
     func paneDidChangeUnseenActivity(_ pane: TerminalPane) { app?.unseenActivityChanged() }
     func paneDidReceiveOutput(_ pane: TerminalPane) { activityMonitor?.wake() }
-    func pane(_ pane: TerminalPane, finishedLongCommandAfter duration: TimeInterval) {
-        app?.notifier.postFinished(sessionID: pane.id, title: window?.title ?? "Lean Term", duration: duration)
+    func pane(_ pane: TerminalPane, finishedLongCommandAfter duration: TimeInterval, exitCode: Int?) {
+        app?.notifier.postFinished(sessionID: pane.id, title: window?.title ?? "Lean Term", duration: duration, exitCode: exitCode)
     }
 
     func pane(_ pane: TerminalPane, didSetStatus text: String) { if pane === focusedPane { status.stringValue = text } }

@@ -27,6 +27,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
+    private let commandStatus = NSButton(checkboxWithTitle: "Show command status in the margin", target: nil, action: nil)
     private let notifications = NSButton(checkboxWithTitle: "Show notifications and Dock badge", target: nil, action: nil)
     private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
     private let quickEnabled = NSButton(checkboxWithTitle: "Show Quick Terminal with", target: nil, action: nil)
@@ -96,7 +97,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         preview.widthAnchor.constraint(equalToConstant: 448).isActive = true
         let appearancePage = Self.vertical([appearanceGrid, dimInactivePanes, preview], spacing: 22)
 
-        for button in [option, confirmPaste, redactCopies, dimInactivePanes, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, notifications] { button.target = self; button.action = #selector(changed) }
+        for button in [option, confirmPaste, redactCopies, dimInactivePanes, closeOnExit, quitAfterLast, restore, resources, activityScanner, tabActivity, sessionMarks, commandStatus, notifications] { button.target = self; button.action = #selector(changed) }
         for button in [quickEnabled, quickHides] { button.target = self; button.action = #selector(changed) }
         quickHotKey.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
         quickHotKey.setAccessibilityLabel("Quick Terminal shortcut")
@@ -119,6 +120,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
         let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
             Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
+        let statusMarks = Self.vertical([commandStatus,
+            Self.note("Needs shell integration (OSC 133). Green: succeeded · red: failed · amber: interrupted. Click a bar to select its output.")], spacing: 7)
         let notifying = Self.vertical([notifications,
             Self.note("Notifies when a command of 10 s or more finishes. Badges missed completions and bells while you are elsewhere.")], spacing: 7)
         makeDefault.target = self; makeDefault.action = #selector(makeDefaultTerminal)
@@ -159,6 +162,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         ])
         let activityPage = Self.grid([
             [NSTextField(labelWithString: "Activity"), activity],
+            [NSTextField(labelWithString: "Command status"), statusMarks],
             [NSTextField(labelWithString: "Notifications"), notifying]
         ])
         let updatesPage: NSView
@@ -380,6 +384,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         activityScanner.state = value.showActivityScanner ? .on : .off
         tabActivity.state = value.showTabActivity ? .on : .off
         sessionMarks.state = value.showSessionMarks ? .on : .off
+        commandStatus.state = value.showCommandStatus ? .on : .off
         notifications.state = value.notifyInBackground ? .on : .off
         quickEnabled.state = value.quickTerminalEnabled ? .on : .off
         quickHides.state = value.quickTerminalHidesOnDeactivate ? .on : .off
@@ -421,6 +426,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.showActivityScanner = activityScanner.state == .on
         value.showTabActivity = tabActivity.state == .on
         value.showSessionMarks = sessionMarks.state == .on
+        value.showCommandStatus = commandStatus.state == .on
         value.notifyInBackground = notifications.state == .on
         value.quickTerminalEnabled = quickEnabled.state == .on
         value.quickTerminalHidesOnDeactivate = quickHides.state == .on

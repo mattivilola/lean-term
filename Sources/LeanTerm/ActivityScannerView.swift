@@ -186,3 +186,80 @@ final class ActivityScannerView: NSView {
         animatedWidth = nil
     }
 }
+
+/// A one-shot pulse along the scanner line when a command ends: a blob sweeping across (or, with Reduce
+/// Motion or Low Power Mode, a static tint) that fades in and out. Core Animation owns the whole
+/// animation, the view never draws, and it sits on top of the scanner without taking clicks.
+@MainActor
+final class ScannerPulseView: NSView {
+    private static let sweepDuration: CFTimeInterval = 0.6
+    private static let tintDuration: CFTimeInterval = 0.4
+    private let blob = CAGradientLayer()
+    private let tint = CALayer()
+
+    override var isFlipped: Bool { true }
+    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 2) }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .never
+        setAccessibilityElement(false)
+        blob.startPoint = CGPoint(x: 0, y: 0.5)
+        blob.endPoint = CGPoint(x: 1, y: 0.5)
+        blob.cornerRadius = 1
+        blob.opacity = 0
+        tint.opacity = 0
+        layer?.addSublayer(tint)
+        layer?.addSublayer(blob)
+    }
+
+    required init?(coder: NSCoder) { fatalError("Programmatic views only") }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        tint.frame = bounds
+        let width = max(40, bounds.width * 0.18)
+        blob.bounds = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+        blob.position = CGPoint(x: width / 2, y: bounds.height / 2)
+        CATransaction.commit()
+    }
+
+    func pulse(_ color: NSColor) {
+        guard bounds.width > 0, window != nil else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        blob.colors = [color.withAlphaComponent(0).cgColor, color.cgColor, color.withAlphaComponent(0).cgColor]
+        tint.backgroundColor = color.cgColor
+        CATransaction.commit()
+        let motion = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && !ProcessInfo.processInfo.isLowPowerModeEnabled
+        if motion {
+            let half = blob.bounds.width / 2
+            let sweep = CABasicAnimation(keyPath: "position.x")
+            sweep.fromValue = half
+            sweep.toValue = max(half, bounds.width - half)
+            sweep.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            let fade = Self.fade(peak: 1, at: 0.3)
+            let group = CAAnimationGroup()
+            group.animations = [sweep, fade]
+            group.duration = Self.sweepDuration
+            group.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+            blob.add(group, forKey: "pulse")
+        } else {
+            let fade = Self.fade(peak: 0.7, at: 0.3)
+            fade.duration = Self.tintDuration
+            tint.add(fade, forKey: "pulse")
+        }
+    }
+
+    private static func fade(peak: Float, at time: Double) -> CAKeyframeAnimation {
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [0, peak, 0]
+        fade.keyTimes = [0, NSNumber(value: time), 1]
+        fade.duration = sweepDuration
+        return fade
+    }
+}

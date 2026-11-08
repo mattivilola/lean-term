@@ -178,11 +178,40 @@ final class LeanTerminalView: LocalProcessTerminalView {
     /// Selects the output of the command at the top of the viewport, or of the latest command at the live
     /// bottom, so Copy and Copy Without Sensitive Data can take it. Scans the rows once per invocation.
     @objc func selectCommandOutput(_ sender: Any?) {
-        guard let map = semanticRowRoles(),
-              let rows = CommandOutputLocator.outputRows(roles: map.roles, viewportTop: map.viewportTop, visibleRows: map.visibleRows)
-        else { return }
-        if !(map.viewportTop..<(map.viewportTop + map.visibleRows)).contains(rows.lowerBound) { scrollTo(row: rows.lowerBound) }
+        guard let viewport = semanticViewport else { return }
+        let atLiveBottom = viewport.top + viewport.rows >= viewport.total
+        let window = atLiveBottom ? max(0, viewport.top - Self.semanticScanLimit)..<viewport.total : viewport.top..<(viewport.top + 1)
+        let candidates = CommandOutputLocator.candidates(spans: commandSpans(in: window), viewportTop: viewport.top, atLiveBottom: atLiveBottom)
+        for span in candidates {
+            if select(outputOf: span, viewportTop: viewport.top, visibleRows: viewport.rows) { return }
+        }
+    }
+
+    /// The commands that intersect the buffer rows, from the OSC 133 marks (empty without shell integration).
+    func commandSpans(in rows: Range<Int>) -> [CommandSpan] {
+        semanticCommandSpans(rows: rows).map { CommandSpan(promptRow: $0.promptRow, lastRow: $0.lastRow, exitCode: $0.exitCode, hasOutput: $0.hasOutput) }
+    }
+
+    /// Selects the output rows of the command that opens at `promptRow`. Does nothing when it has none.
+    func selectCommandOutput(promptRow: Int) {
+        guard let viewport = semanticViewport,
+              let span = commandSpans(in: promptRow..<(promptRow + 1)).first(where: { $0.promptRow == promptRow }) else { return }
+        _ = select(outputOf: span, viewportTop: viewport.top, visibleRows: viewport.rows)
+    }
+
+    private func select(outputOf span: CommandSpan, viewportTop: Int, visibleRows: Int) -> Bool {
+        guard let rows = semanticOutputRows(promptRow: span.promptRow, lastRow: span.lastRow) else { return false }
+        if !(viewportTop..<(viewportTop + visibleRows)).contains(rows.lowerBound) { scrollTo(row: rows.lowerBound) }
         selectBufferRows(rows)
+        return true
+    }
+
+    /// Called on the main thread when the viewport's scroll position changed (user scrolling or output).
+    var onScrolled: (@MainActor () -> Void)?
+
+    override func scrolled(source: TerminalView, position: Double) {
+        super.scrolled(source: source, position: position)
+        onScrolled?()
     }
 
     // MARK: Clickable paths
@@ -336,7 +365,7 @@ final class LeanTerminalView: LocalProcessTerminalView {
     }
 
     /// The cell size and grid dimensions SwiftTerm lays out with, derived from its public API.
-    private func cellMetrics() -> (width: CGFloat, height: CGFloat, cols: Int, rows: Int)? {
+    func cellMetrics() -> (width: CGFloat, height: CGFloat, cols: Int, rows: Int)? {
         guard let dimensions = terminalInputStateSnapshot()?.dimensions, dimensions.cols > 0, dimensions.rows > 0 else { return nil }
         var character: UniChar = 0x57
         var glyph: CGGlyph = 0

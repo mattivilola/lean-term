@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Quick Terminal: ⌃⌥⌘T (configurable in Settings › General) slides a terminal down from the top of the screen over any app or Space; its shell keeps running while hidden.
+- Command status (with shell integration): a green, red or amber bar beside each finished command (hover for the exit code, click to select its output), a red scanner pulse when a command fails, red finished-tab rings and "Failed (exit N)" notifications.
 - Configurable scrollback in Settings › Terminal (1,000 to 100,000 lines), applied to open tabs immediately.
 - Settings regrouped into Appearance, General, Terminal, Activity, Hosts and Updates pages.
 - New Tab and New Window open in the current folder even while Lean Term is in the background.

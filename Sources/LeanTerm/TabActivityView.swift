@@ -12,7 +12,7 @@ enum SessionMark: Equatable {
 /// that is filled while a command runs or a ring when a long command finished in a tab nobody was looking at.
 @MainActor
 final class TabActivityView: NSView {
-    enum Mark { case hidden, running, done }
+    enum Mark { case hidden, running, done, failed }
 
     private static let dotSize: CGFloat = 14
     private static let symbolSize: CGFloat = 14
@@ -21,6 +21,7 @@ final class TabActivityView: NSView {
     private let bellSymbol = NSImageView()
     private var phosphor = NSColor.controlAccentColor
     private var amber = NSColor.systemOrange
+    private var failure = NSColor.systemRed
     private(set) var mark: Mark = .hidden
     private(set) var session: SessionMark = .none
 
@@ -60,9 +61,10 @@ final class TabActivityView: NSView {
         dotView.frame = NSRect(x: symbolWidth + bellWidth, y: 0, width: Self.dotSize, height: bounds.height)
     }
 
-    func applyColors(phosphor: NSColor, amber: NSColor) {
+    func applyColors(phosphor: NSColor, amber: NSColor, failure: NSColor) {
         self.phosphor = phosphor
         self.amber = amber
+        self.failure = failure
         render()
     }
 
@@ -85,7 +87,7 @@ final class TabActivityView: NSView {
     }
 
     private func render() {
-        dotView.apply(mark, color: phosphor)
+        dotView.apply(mark, color: mark == .failed ? failure : phosphor)
         dotView.isHidden = !showsDot
         switch session {
         case .none:
@@ -133,6 +135,7 @@ final class TabActivityView: NSView {
         case .hidden: break
         case .running: parts.append("Command running")
         case .done: parts.append("Command finished")
+        case .failed: parts.append("Command failed")
         }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
@@ -171,7 +174,7 @@ private final class DotView: NSView {
             shape.fillColor = color.cgColor
             shape.strokeColor = nil
             shape.lineWidth = 0
-        case .done:
+        case .done, .failed:
             shape.fillColor = nil
             shape.strokeColor = color.cgColor
             shape.lineWidth = 1.5

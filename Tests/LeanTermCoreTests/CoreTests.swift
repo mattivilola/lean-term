@@ -43,7 +43,7 @@ import Testing
     var value = Preferences()
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
-    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
+    value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.showCommandStatus = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
     value.quickTerminalEnabled = false; value.quickTerminalHidesOnDeactivate = false
     value.quickTerminalHotKey = QuickTerminalHotKey(keyCode: 49, key: " ", modifiers: [.control, .option])
     value.save(to: defaults)
@@ -139,6 +139,7 @@ import Testing
     #expect(Preferences(defaults: defaults).showActivityScanner)
     #expect(Preferences(defaults: defaults).showTabActivity)
     #expect(Preferences(defaults: defaults).showSessionMarks)
+    #expect(Preferences(defaults: defaults).showCommandStatus)
     #expect(Preferences(defaults: defaults).fontName == "SF Mono")
     #expect(Preferences(defaults: defaults).fontSize == 13)
     defaults.set("Menlo", forKey: "fontName")
@@ -214,15 +215,63 @@ import Testing
     #expect(PathDetection.match(in: "'../up/file.c'.", at: 4)?.characters == 1..<13)
 }
 
-@Test func commandOutputIsFoundFromViewportOrLiveBottom() {
-    //             0  1  2  3  4  5  6  7  8
-    let roles: [UInt8] = [0, 1, 2, 2, 0, 2, 1, 2, 1]
-    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 5, visibleRows: 2) == 2...5)
-    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 7, visibleRows: 1) == 7...7)
-    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 0, visibleRows: 3) == nil)
-    #expect(CommandOutputLocator.outputRows(roles: roles, viewportTop: 5, visibleRows: 4) == 7...7)
-    #expect(CommandOutputLocator.outputRows(roles: [1, 2, 2, 1], viewportTop: 1, visibleRows: 3) == 1...2)
-    #expect(CommandOutputLocator.outputRows(roles: [0, 0], viewportTop: 0, visibleRows: 2) == nil)
+@Test func commandOutputCandidatesFollowViewportOrLiveBottom() {
+    let spans = [CommandSpan(promptRow: 1, lastRow: 3, exitCode: 0),
+                 CommandSpan(promptRow: 6, lastRow: 7, exitCode: 2),
+                 CommandSpan(promptRow: 8, lastRow: 9, exitCode: nil)]
+    #expect(CommandOutputLocator.candidates(spans: spans, viewportTop: 5, atLiveBottom: false) == [spans[0]])
+    #expect(CommandOutputLocator.candidates(spans: spans, viewportTop: 7, atLiveBottom: false) == [spans[1]])
+    #expect(CommandOutputLocator.candidates(spans: spans, viewportTop: 0, atLiveBottom: false).isEmpty)
+    #expect(CommandOutputLocator.candidates(spans: spans, viewportTop: 5, atLiveBottom: true) == spans.reversed())
+}
+
+@Test func statusBarsCoverFinishedCommandsClippedToTheViewport() {
+    let spans = [CommandSpan(promptRow: 0, lastRow: 4, exitCode: 0, hasOutput: true),
+                 CommandSpan(promptRow: 5, lastRow: 9, exitCode: 130),
+                 CommandSpan(promptRow: 10, lastRow: 14, exitCode: 1),
+                 CommandSpan(promptRow: 15, lastRow: 16, exitCode: nil),
+                 CommandSpan(promptRow: 17, lastRow: 17, exitCode: 0),
+                 CommandSpan(promptRow: 18, lastRow: 18, exitCode: 1)]
+    let bars = CommandStatusLayout.bars(spans: spans, viewportTop: 3, visibleRows: 10)
+    #expect(bars.map(\.promptRow) == [0, 5, 10])
+    #expect(bars.map(\.firstRow) == [0, 2, 7])
+    #expect(bars.map(\.lastRow) == [1, 6, 9])
+    #expect(bars.map(\.outcome) == [.succeeded, .interrupted(signal: 2), .failed(exitCode: 1)])
+    // A silent success (row 17) gets no bar, a silent failure (row 18) does.
+    #expect(CommandStatusLayout.bars(spans: spans, viewportTop: 17, visibleRows: 5).map(\.promptRow) == [18])
+    #expect(CommandStatusLayout.bars(spans: spans, viewportTop: 19, visibleRows: 5).isEmpty)
+}
+
+@Test func commandOutcomeClassifiesExitCodes() {
+    #expect(CommandOutcome(exitCode: 0) == .succeeded)
+    #expect(CommandOutcome(exitCode: 2) == .failed(exitCode: 2))
+    #expect(CommandOutcome(exitCode: 127).summary == "Failed · exit 127")
+    #expect(CommandOutcome(exitCode: 130) == .interrupted(signal: 2))
+    #expect(CommandOutcome(exitCode: 130).summary == "Interrupted · signal 2")
+    #expect(CommandOutcome.succeeded.summary == "Succeeded")
+    #expect(CommandOutcome(exitCode: 1).pulse(after: 0.1) == .failure)
+    #expect(CommandOutcome(exitCode: 130).pulse(after: 60) == nil)
+    #expect(CommandOutcome(exitCode: 0).pulse(after: 9.9) == nil)
+    #expect(CommandOutcome(exitCode: 0).pulse(after: nil) == nil)
+    #expect(CommandOutcome(exitCode: 0).pulse(after: 10) == .success)
+    #expect(CommandOutcome.notificationBody(exitCode: 3, duration: "12 s") == "Failed (exit 3) after 12 s")
+    #expect(CommandOutcome.notificationBody(exitCode: 0, duration: "12 s") == "Finished after 12 s")
+    #expect(CommandOutcome.notificationBody(exitCode: nil, duration: "12 s") == "Finished after 12 s")
+}
+
+@Test func shellMarksParseOsc133Payloads() {
+    func mark(_ text: String) -> ShellMark { ShellMark(osc133: Array(text.utf8)) }
+    #expect(mark("A") == .promptStart)
+    #expect(mark("A;k=s") == .promptStart)
+    #expect(mark("C") == .commandStart)
+    #expect(mark("D;0") == .commandEnd(exitCode: 0))
+    #expect(mark("D;127;aid=1") == .commandEnd(exitCode: 127))
+    #expect(mark("D") == .commandEnd(exitCode: nil))
+    #expect(mark("D;") == .commandEnd(exitCode: nil))
+    #expect(mark("D;err=1") == .commandEnd(exitCode: nil))
+    #expect(mark("D;-1") == .commandEnd(exitCode: nil))
+    #expect(mark("B") == .other)
+    #expect(mark("") == .other)
 }
 
 @Test func quickTerminalHotKeyNeedsTwoModifiersAndDefaultsOnCorruption() throws {

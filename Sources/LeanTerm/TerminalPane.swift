@@ -41,7 +41,8 @@ protocol TerminalPaneHost: AnyObject {
     func paneDidChangeUnseenActivity(_ pane: TerminalPane)
     /// PTY output arrived while the sampler may be asleep.
     func paneDidReceiveOutput(_ pane: TerminalPane)
-    func pane(_ pane: TerminalPane, finishedLongCommandAfter duration: TimeInterval)
+    /// `exitCode` is the status the shell reported when the command ended, if it did so within a moment of it.
+    func pane(_ pane: TerminalPane, finishedLongCommandAfter duration: TimeInterval, exitCode: Int?)
 
     func pane(_ pane: TerminalPane, didSetStatus text: String)
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool)
@@ -67,9 +68,19 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     let view = NSView()
     weak var host: TerminalPaneHost?
     private let scanner = ActivityScannerView()
+    private let scannerPulse = ScannerPulseView()
+    private let statusMargin = CommandStatusView()
     private let activityCounter = SessionActivityCounter()
     private var activityModel = SessionActivityModel()
-    private(set) var finishedUnseen = false { didSet { if finishedUnseen != oldValue { host?.paneDidChangeUnseenActivity(self) } } }
+    private(set) var finishedUnseen = false {
+        didSet {
+            if !finishedUnseen { finishedFailed = false }
+            if finishedUnseen != oldValue { host?.paneDidChangeUnseenActivity(self) }
+        }
+    }
+    /// The unseen finished command reported a non-zero exit status. Set just before `finishedUnseen`.
+    private var finishedFailed = false
+    var finishedFailedUnseen: Bool { finishedUnseen && finishedFailed }
     private(set) var bellUnseen = false { didSet { if bellUnseen != oldValue { host?.paneDidChangeUnseenActivity(self) } } }
     var hasUnseenActivity: Bool { finishedUnseen || bellUnseen }
     var activityIndicator: ActivityIndicator { activityModel.indicator }
@@ -87,6 +98,17 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private(set) var state: State = .starting
     private(set) var currentDirectory: String
     private var preferences: Preferences
+    // Command status (OSC 133). All of it stays idle until the shell sends its first mark.
+    private var shellMarkObservation: TerminalOscObservation?
+    private var shellMarksSeen = false
+    private var commandStartTime: TimeInterval?
+    private var lastCommandEnd: (exitCode: Int, time: TimeInterval)?
+    private var statusRefresh: DispatchWorkItem?
+    private var statusRefreshTime: TimeInterval = 0
+    /// Set by a finished command; the next refresh that shows its new bar fades it in.
+    private var fadeInDeadline: TimeInterval?
+    private var wasVisible = false
+    private static let statusRefreshInterval: TimeInterval = 0.125
     private var theme: TerminalTheme
     private let launch: ShellLaunch
     private var didStart = false
@@ -141,6 +163,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         super.init()
         terminal.processDelegate = self
         installOutputHandler()
+        installShellMarkObserver()
         terminal.onBell = { [weak self] in self?.bellRang() }
         terminal.confirmsMultilinePaste = preferences.confirmMultilinePaste
         terminal.redactsCopies = preferences.redactCopies
@@ -163,11 +186,30 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         view.addSubview(terminal)
         scanner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scanner)
+        scannerPulse.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scannerPulse)
+        statusMargin.translatesAutoresizingMaskIntoConstraints = false
+        statusMargin.colorForOutcome = { [weak self] in self?.theme.commandColor($0) ?? .labelColor }
+        statusMargin.onSelect = { [weak self] promptRow in
+            guard let self else { return }
+            terminal.window?.makeFirstResponder(terminal)
+            terminal.selectCommandOutput(promptRow: promptRow)
+        }
+        terminal.onScrolled = { [weak self] in self?.scheduleStatusRefresh() }
+        view.addSubview(statusMargin)
         NSLayoutConstraint.activate([
             scanner.topAnchor.constraint(equalTo: view.topAnchor, constant: 5),
             scanner.heightAnchor.constraint(equalToConstant: 2),
             scanner.leadingAnchor.constraint(equalTo: terminal.leadingAnchor),
             scanner.trailingAnchor.constraint(equalTo: terminal.trailingAnchor),
+            scannerPulse.topAnchor.constraint(equalTo: scanner.topAnchor),
+            scannerPulse.heightAnchor.constraint(equalTo: scanner.heightAnchor),
+            scannerPulse.leadingAnchor.constraint(equalTo: scanner.leadingAnchor),
+            scannerPulse.trailingAnchor.constraint(equalTo: scanner.trailingAnchor),
+            statusMargin.topAnchor.constraint(equalTo: view.topAnchor),
+            statusMargin.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            statusMargin.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            statusMargin.trailingAnchor.constraint(equalTo: terminal.leadingAnchor),
             terminal.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
             terminal.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             terminal.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
@@ -209,6 +251,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
                     guard let self else { return }
                     self.terminal.outputArrived()
                     self.host?.paneDidReceiveOutput(self)
+                    self.scheduleStatusRefresh()
                 }
             }
         }
@@ -232,8 +275,12 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             remoteSession: session.isRemote)
         activityCounter.disarm()
         if case .finishedLongCommand(let duration)? = activityModel.record(sample), !isBeingViewed {
-            if preferences.showTabActivity { finishedUnseen = true }
-            host?.pane(self, finishedLongCommandAfter: duration)
+            let exitCode = lastCommandEnd.flatMap { ProcessInfo.processInfo.systemUptime - $0.time <= 2 ? $0.exitCode : nil }
+            if preferences.showTabActivity {
+                finishedFailed = preferences.showCommandStatus && (exitCode ?? 0) != 0
+                finishedUnseen = true
+            }
+            host?.pane(self, finishedLongCommandAfter: duration, exitCode: exitCode)
         }
         if activityModel.indicator != .idle { finishedUnseen = false }
         renderActivity()
@@ -296,6 +343,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         host?.paneDidChangeLocation(self)
         finishedUnseen = false
         bellUnseen = false
+        commandStartTime = nil
+        lastCommandEnd = nil
         renderActivity()
     }
 
@@ -307,8 +356,13 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
 
     /// Updates the scanner only; the window re-renders its own marks.
     func renderScanner() {
-        scanner.setIndicator(preferences.showActivityScanner ? activityModel.indicator : .idle, visible: host?.isPaneVisible(self) ?? false)
+        let visible = host?.isPaneVisible(self) ?? false
+        scanner.setIndicator(preferences.showActivityScanner ? activityModel.indicator : .idle, visible: visible)
         scanner.setHostTint(hostTint)
+        if visible != wasVisible {
+            wasVisible = visible
+            scheduleStatusRefresh()
+        }
     }
 
     func renderActivity() {
@@ -323,12 +377,17 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         preferences = value
         if scrollbackChanged { terminal.changeScrollback(value.scrollbackLines) }
         if !value.showTabActivity { markSeen() }
+        if !value.showCommandStatus {
+            statusRefresh?.cancel(); statusRefresh = nil
+            statusMargin.clear()
+        }
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
         terminal.confirmsMultilinePaste = value.confirmMultilinePaste
         terminal.redactsCopies = value.redactCopies
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
+        scheduleStatusRefresh()
     }
 
     func applyTheme(_ theme: TerminalTheme) {
@@ -340,10 +399,80 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         terminal.selectedTextBackgroundColor = theme.selection
         terminal.selectedTextForegroundColor = theme.foreground
         scanner.applyAccent(theme.phosphor)
+        statusMargin.colorForOutcome = { [weak self] in self?.theme.commandColor($0) ?? .labelColor }
+        scheduleStatusRefresh()
         terminal.progressBarColor = theme.phosphor
         terminal.pathHighlightColors = PathHighlightColors(phosphor: theme.phosphor, background: theme.background,
                                                            foreground: theme.foreground, dark: theme.dark)
         renderActivity()
+    }
+
+    // MARK: Command status (OSC 133)
+
+    /// Watches the shell's OSC 133 marks. The handler runs on SwiftTerm's delivery queue for every OSC
+    /// sequence, so it only filters by code, parses the few bytes of an OSC 133 payload and hops to main.
+    private func installShellMarkObserver() {
+        shellMarkObservation = terminal.observeOscEvents { [weak self] event in
+            guard event.code == 133 else { return }
+            let mark = ShellMark(osc133: event.payload)
+            guard mark != .other else { return }
+            let time = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.shellMarkReceived(mark, at: time) }
+            }
+        }
+    }
+
+    private func shellMarkReceived(_ mark: ShellMark, at time: TimeInterval) {
+        shellMarksSeen = true
+        switch mark {
+        case .commandStart:
+            commandStartTime = time
+        case .commandEnd(let exitCode):
+            let duration = commandStartTime.map { time - $0 }
+            commandStartTime = nil
+            lastCommandEnd = exitCode.map { ($0, time) }
+            if let exitCode, preferences.showCommandStatus, isBeingViewed,
+               let pulse = CommandOutcome(exitCode: exitCode).pulse(after: duration) {
+                scannerPulse.pulse(pulse == .failure ? theme.failure : theme.phosphor)
+            }
+            fadeInDeadline = time + 1
+            scheduleStatusRefresh()
+        case .promptStart, .other:
+            scheduleStatusRefresh()
+        }
+    }
+
+    /// Coalesces every trigger (output, scrolling, resize, theme, marks) into one refresh, at most about
+    /// 8 times a second, using a single pending work item and no timer. Does nothing until the shell has
+    /// sent an OSC 133 mark or while the preference is off.
+    private func scheduleStatusRefresh() {
+        guard shellMarksSeen, preferences.showCommandStatus, statusRefresh == nil else { return }
+        let wait = max(0, statusRefreshTime + Self.statusRefreshInterval - ProcessInfo.processInfo.systemUptime)
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.refreshCommandStatus() }
+        }
+        statusRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: work)
+    }
+
+    private func refreshCommandStatus() {
+        statusRefresh = nil
+        let now = ProcessInfo.processInfo.systemUptime
+        statusRefreshTime = now
+        guard preferences.showCommandStatus, host?.isPaneVisible(self) == true,
+              let viewport = terminal.semanticViewport, let metrics = terminal.cellMetrics() else {
+            statusMargin.clear()
+            return
+        }
+        let spans = terminal.commandSpans(in: viewport.top..<min(viewport.total, viewport.top + viewport.rows))
+        let bars = CommandStatusLayout.bars(spans: spans, viewportTop: viewport.top, visibleRows: viewport.rows)
+        // The terminal's rows start at its top edge; the margin view spans the pane's full height.
+        let originY = view.bounds.height - terminal.frame.maxY
+        let fade = fadeInDeadline.map { now < $0 } ?? false
+        if statusMargin.show(bars, originY: originY, rowHeight: metrics.height, fadeInNewest: fade) || !fade {
+            fadeInDeadline = nil
+        }
     }
 
     // MARK: Shutdown
@@ -373,6 +502,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
 
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
         dimensionsText = "\(newCols) × \(newRows)"
+        scheduleStatusRefresh()
         host?.pane(self, didChangeDimensions: dimensionsText)
     }
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {

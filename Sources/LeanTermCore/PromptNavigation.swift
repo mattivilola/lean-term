@@ -1,31 +1,55 @@
 import Foundation
 
-/// Finds the output of a command in the row roles that the terminal derives from OSC 133 marks:
-/// 1 for a row that opens a prompt, 2 for a row holding command output, 0 for anything else.
-public enum CommandOutputLocator {
-    /// The rows from the first to the last output row of one command, or nil when there is none.
-    ///
-    /// When the viewport shows the live bottom this is the most recent command that produced output;
-    /// otherwise it is the command whose prompt is nearest at or above the top of the viewport.
-    public static func outputRows(roles: [UInt8], viewportTop: Int, visibleRows: Int) -> ClosedRange<Int>? {
-        let prompts = roles.indices.filter { roles[$0] == 1 }
-        guard !prompts.isEmpty else { return nil }
-        if viewportTop + visibleRows >= roles.count {
-            for (index, prompt) in prompts.enumerated().reversed() {
-                let end = index + 1 < prompts.count ? prompts[index + 1] : roles.count
-                if let rows = output(in: roles, after: prompt, before: end) { return rows }
-            }
-            return nil
-        }
-        guard let index = prompts.lastIndex(where: { $0 <= viewportTop }) else { return nil }
-        let end = index + 1 < prompts.count ? prompts[index + 1] : roles.count
-        return output(in: roles, after: prompts[index], before: end)
+/// A command delimited by OSC 133 marks, as the terminal derives it: the row that opens its prompt, its
+/// last row, and the status `D;<status>` reported (nil while it runs or when none was reported).
+public struct CommandSpan: Equatable, Sendable {
+    public var promptRow: Int
+    public var lastRow: Int
+    public var exitCode: Int?
+    /// Whether the command wrote output. Only known for status 0; see `CommandStatusLayout.bars`.
+    public var hasOutput: Bool
+
+    public init(promptRow: Int, lastRow: Int, exitCode: Int?, hasOutput: Bool = false) {
+        self.promptRow = promptRow
+        self.lastRow = lastRow
+        self.exitCode = exitCode
+        self.hasOutput = hasOutput
     }
 
-    private static func output(in roles: [UInt8], after prompt: Int, before end: Int) -> ClosedRange<Int>? {
-        guard prompt + 1 < end,
-              let first = (prompt + 1..<end).first(where: { roles[$0] == 2 }),
-              let last = (prompt + 1..<end).last(where: { roles[$0] == 2 }) else { return nil }
-        return first...last
+    public var outcome: CommandOutcome? { exitCode.map(CommandOutcome.init(exitCode:)) }
+}
+
+/// Chooses which command "Select Command Output" works on.
+public enum CommandOutputLocator {
+    /// The commands to try, best first. When the viewport shows the live bottom that is every command,
+    /// newest first (the caller takes the first one that produced output); otherwise it is only the
+    /// command whose prompt is nearest at or above the top of the viewport.
+    public static func candidates(spans: [CommandSpan], viewportTop: Int, atLiveBottom: Bool) -> [CommandSpan] {
+        if atLiveBottom { return spans.reversed() }
+        return spans.last(where: { $0.promptRow <= viewportTop }).map { [$0] } ?? []
+    }
+}
+
+/// A margin bar for one finished command, in viewport rows (0 is the top row).
+public struct CommandStatusBar: Equatable, Sendable {
+    public var promptRow: Int
+    public var firstRow: Int
+    public var lastRow: Int
+    public var outcome: CommandOutcome
+}
+
+public enum CommandStatusLayout {
+    /// The bars to draw for `spans` in a viewport starting at buffer row `viewportTop`: finished commands
+    /// only, clipped to the visible rows. A bar spans the prompt row through the last output row. A silent
+    /// success (status 0, no output: an empty Enter, `cd`) gets no bar; a failure always does.
+    public static func bars(spans: [CommandSpan], viewportTop: Int, visibleRows: Int) -> [CommandStatusBar] {
+        spans.compactMap { span in
+            guard let outcome = span.outcome, outcome.isFailure || span.hasOutput, span.lastRow >= viewportTop,
+                  span.promptRow < viewportTop + visibleRows else { return nil }
+            return CommandStatusBar(promptRow: span.promptRow,
+                                    firstRow: max(span.promptRow, viewportTop) - viewportTop,
+                                    lastRow: min(span.lastRow, viewportTop + visibleRows - 1) - viewportTop,
+                                    outcome: outcome)
+        }
     }
 }

@@ -62,6 +62,15 @@ end
 Some fish releases may already emit OSC 133 themselves; if the menu items are enabled without the
 snippet, you do not need it, and having both can mark prompts twice.
 
+## Command status in the margin
+
+With the `D;status` part (`print -n "\e]133;D;$?\a"` in zsh, `printf '\e]133;D;%s\a' "$?"` in bash,
+`$status` in fish), Lean Term draws a thin bar in the left margin of every finished command: green when
+it succeeded, red when it failed, amber when it was interrupted by a signal (status 128 and above).
+Hover a bar for the status, click it to select the command's output. The same status colours the
+finished-tab ring and the "Failed (exit N)" notification and pulses the activity line. Without it the
+bars are simply absent. Settings › Activity › "Show command status in the margin" turns them off.
+
 ## Check that it works
 
 Run a command or two, then open the **Terminal** menu: Previous Prompt and Next Prompt are enabled

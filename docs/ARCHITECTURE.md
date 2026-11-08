@@ -158,24 +158,76 @@ Opt-in and shell-driven: Lean Term never injects hooks. When the shell emits OSC
 (`docs/SHELL_INTEGRATION.md`), SwiftTerm stores zero-width prompt marks on buffer lines and tags
 cells written after `C` as output. Terminal › Previous/Next Prompt (⌘↑/⌘↓) use SwiftTerm's public
 `previousSemanticPromptRow()`/`nextSemanticPromptRow()` and `scrollTo(row:)`; past the last prompt the
-view returns to the live bottom. Edit › Select Command Output (⇧⌘A) asks the view for one role byte
-per buffer row (prompt, output, other) and `CommandOutputLocator` (Core, pure) picks the output rows of
-the command at the viewport top, or the latest one at the live bottom. Scans run only when a command
-is invoked or a menu is validated (`hasSemanticPrompts`, early exit), never per frame or on output.
-The items are disabled without prompt marks and in the alternate screen. Those row-level helpers and
-`selectBufferRows` are the only public API SwiftTerm lacked, so `script/prepare_dependency.py` adds
-them to `MacTerminalView.swift` under the same exact-hash rules as the lifecycle patch.
+view returns to the live bottom. Edit › Select Command Output (⇧⌘A) asks the view for the commands
+(`semanticCommandSpans(rows:)`, below) around the viewport top, or the newest ones at the live bottom,
+and `CommandOutputLocator` (Core, pure) orders them; the first with output cells
+(`semanticOutputRows`) is selected with `selectBufferRows`. Scans run only when a command is invoked or
+a menu is validated (`hasSemanticPrompts`, early exit), never per frame or on output. The items are
+disabled without prompt marks and in the alternate screen. Those row-level helpers are the only public
+API SwiftTerm lacked, so `script/prepare_dependency.py` adds them to `MacTerminalView.swift` under the
+same exact-hash rules as the lifecycle patch.
+
+## Command status
+
+Margin bars, scanner pulses and the red finished ring show how commands ended. They need the shell to
+send `OSC 133;D;<status>` (`docs/SHELL_INTEGRATION.md`) and cost nothing before the first OSC 133 mark.
+
+Data flow:
+
+1. SwiftTerm's `D` handler (patched) parses the first positional field after `D` as a decimal status and
+   stores it on the buffer line that opened the active prompt, i.e. the command it ends. It is a plain
+   optional on `BufferLine`, next to the marks, so it follows the line through scrollback trimming and
+   reflow and is dropped when the line is recycled. A `D` before any prompt, or without a number, is ignored.
+2. `semanticCommandSpans(rows:)` returns `SemanticCommandSpan(promptRow, lastRow, exitCode)` for the
+   commands intersecting the given buffer rows: it scans upward from the first row to the enclosing
+   prompt, then forward over the range. A command ends on the row before the next prompt (at the cursor
+   while none follows). `exitCode` is nil while the command runs, when none was reported, or when the
+   command is longer than the scan limit. Every scan is bounded by `semanticScanLimit` (10,000 rows)
+   beyond the requested rows, so 100,000 lines of scrollback cost the same as 10,000.
+3. `TerminalPane` observes OSC events (`observeOscEvents`, SwiftTerm's private serial queue). The handler
+   keeps only OSC 133 sequences, parses them (`ShellMark`, Core) and hops to the main thread with a
+   monotonic timestamp: `C` starts the clock, `D` gives duration and status.
+4. `CommandStatusLayout` (Core, pure) turns spans into viewport-clipped bars for finished commands.
+   A silent success (status 0 and no output cell, such as an empty Enter or `cd`) gets no bar; a failure
+   always does. Spans therefore carry `hasOutput`, computed only for status 0 with an early exit.
+   `CommandStatusView` draws them as reused `CALayer`s in the pane's left padding (3 pt wide, 5 pt from the
+   edge); only the bars hit-test, for a tooltip (`CommandOutcome.summary`) and a click that selects the
+   command's output rows.
+
+Cost bounds: the view has no `draw(_:)`. Refreshes are triggered by output, scrolling
+(`scrolled(source:position:)`), resize, theme and visibility changes and OSC 133 marks. They are coalesced
+into one pending `DispatchWorkItem` with a minimum spacing of 125 ms (at most 8 per second) and no
+repeating timer, and they are skipped while the pane is not visible, the preference is off or no OSC 133
+mark has been seen. An unchanged result touches no layers. Only the newest bar fades in (150 ms).
+
+Colours: exit 0 is the theme phosphor at 75 %; a non-zero status is `TerminalTheme.failure` (dark
+`#ff6b6b`, light `#c62828`); 128 and above (a signal) is the theme amber. Running or unknown commands get no
+bar.
+
+Other signals use the same data. A failing command in the viewed pane pulses the scanner line once red
+(a successful one only if it ran 10 s or more; Ctrl-C style interruptions stay quiet) with a render-server
+animation of about 600 ms, or a 400 ms static tint under Reduce Motion or Low Power Mode. A tab whose
+unseen finished command failed shows the finished ring in red, and the background notification reads
+"Failed (exit N) after …" when the status arrived within 2 s of the job's end. Pulse and ring follow
+Settings › Activity › Show command status in the margin; the notification wording does not.
 
 ## Pinned compatibility patch
 
 SwiftTerm is pinned to `309adcc28bdf0e01f6403d04616323b379fb5635`. Its public
 `terminate()` supports TERM only, while its private reaper already protects signals
 against PID reuse. `script/prepare_dependency.py` makes three small lifecycle changes (plus the prompt helpers
-described above):
+and exit status storage described above):
 
 1. Expose `terminate(signal: Int32 = SIGTERM)`.
 2. Permit a later signal while the session is already terminating.
 3. Forward the requested signal to that existing safe reaper.
+
+The OSC 133 extension touches three more files: `Terminal.swift` (the `D` handler stores the status),
+`BufferLine.swift` (the optional `semanticExitCode`, copied, moved with full-width copies and cleared next
+to the continuation epoch) and `MacTerminalView.swift` (`hasSemanticPrompts`, `semanticViewport`,
+`semanticCommandSpans(rows:)`, `semanticOutputRows(promptRow:lastRow:)`, `selectBufferRows(_:)`). Each
+patch is an exact-anchor replacement checked against the reviewed original and patched SHA-256; a file
+holding an earlier reviewed patched version is restored from the checkout's git `HEAD` and patched again.
 
 The renderer, parser and I/O pipeline are unchanged. The script verifies the
 revision and exact original or patched source SHA-256, refuses any other contents,
