@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — Quick Terminal and scrollback search
 
 - Quick Terminal: ⌃⌥⌘T (configurable in Settings › General) slides a terminal down from the top of the screen over any app or Space; its shell keeps running while hidden.
 - Command status (with shell integration): a green, red or amber bar beside each finished command (hover for the exit code, click to select its output), a red scanner pulse when a command fails, red finished-tab rings and "Failed (exit N)" notifications.
