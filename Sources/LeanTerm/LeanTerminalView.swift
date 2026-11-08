@@ -164,6 +164,98 @@ final class LeanTerminalView: LocalProcessTerminalView {
         }
     }
 
+    // MARK: Find
+
+    /// What the Find menu items, shortcuts and toolbar button ask for; `TerminalPane` answers them with its find bar.
+    enum FindCommand {
+        case show, next, previous, useSelection, hide
+
+        /// The tags shared by `NSFindPanelAction` and `NSTextFinder.Action` (11 is only the latter's hide).
+        init?(tag: Int) {
+            switch tag {
+            case Int(NSFindPanelAction.showFindPanel.rawValue): self = .show
+            case Int(NSFindPanelAction.next.rawValue): self = .next
+            case Int(NSFindPanelAction.previous.rawValue): self = .previous
+            case Int(NSFindPanelAction.setFindString.rawValue): self = .useSelection
+            case NSTextFinder.Action.hideFindInterface.rawValue: self = .hide
+            default: return nil
+            }
+        }
+    }
+
+    var onFind: (@MainActor (FindCommand) -> Void)?
+
+    override func performFindPanelAction(_ sender: Any?) {
+        guard let onFind, let item = sender as? NSMenuItem, let command = FindCommand(tag: item.tag) else { return super.performFindPanelAction(sender) }
+        onFind(command)
+    }
+
+    override func performTextFinderAction(_ sender: Any?) {
+        guard let onFind, let item = sender as? NSMenuItem, let command = FindCommand(tag: item.tag) else { return super.performTextFinderAction(sender) }
+        onFind(command)
+    }
+
+    /// Where the displayed buffer sits in SwiftTerm's scroll-invariant row numbers, which stay valid while old
+    /// rows are trimmed from the scrollback. A buffer row is `absolute row - base`.
+    struct BufferGeometry {
+        /// The absolute row number of buffer row 0.
+        var base: Int
+        /// The buffer row at the top of the viewport (0 in the alternate buffer, which has no scrollback).
+        var viewportTop: Int
+        /// The number of rows in the buffer, scrollback included.
+        var total: Int
+        var rows: Int
+        var cols: Int
+        var isAlternate: Bool
+    }
+
+    /// Reads the geometry in two short lock acquisitions. Nil without a session.
+    func bufferGeometry() -> BufferGeometry? {
+        guard let viewport = terminalContentSnapshot(region: .viewport) else { return nil }
+        let dimensions = viewport.inputState.dimensions
+        let semantic = semanticViewport
+        let top = semantic?.top ?? 0
+        return BufferGeometry(base: viewport.capturedRange.lowerBound - top, viewportTop: top,
+                              total: semantic?.total ?? dimensions.rows, rows: dimensions.rows, cols: dimensions.cols,
+                              isAlternate: viewport.inputState.isAlternateBuffer)
+    }
+
+    /// The text and soft-wrap flag of the buffer rows with these absolute numbers (rows trimmed meanwhile read
+    /// as empty), copied in chunks. Each chunk holds the terminal lock for a few milliseconds, so a 100,000-line
+    /// scrollback is copied in about half a second without ever stalling output or drawing; any thread may call it.
+    nonisolated func bufferText(absoluteRows range: Range<Int>) -> (rows: [String], wrapped: [Bool]) {
+        var rows: [String] = []
+        var wrapped: [Bool] = []
+        rows.reserveCapacity(range.count)
+        wrapped.reserveCapacity(range.count)
+        var next = range.lowerBound
+        while next < range.upperBound {
+            let chunk = next..<min(range.upperBound, next + 1_000)
+            guard let snapshot = terminalContentSnapshot(region: .rows(chunk)) else { break }
+            for row in snapshot.rows {
+                while next < row.absoluteRow { rows.append(""); wrapped.append(false); next += 1 }
+                rows.append(row.text)
+                wrapped.append(row.isWrapped)
+                next += 1
+            }
+            if next < chunk.upperBound {
+                // Rows the terminal no longer retains.
+                rows.append(contentsOf: repeatElement("", count: chunk.upperBound - next))
+                wrapped.append(contentsOf: repeatElement(false, count: chunk.upperBound - next))
+                next = chunk.upperBound
+            }
+        }
+        return (rows, wrapped)
+    }
+
+    /// Called on the main thread whenever the view is laid out (a resize may move the rows).
+    var onLayout: (@MainActor () -> Void)?
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
+
     // MARK: Prompt navigation (needs the shell to emit OSC 133)
 
     @objc func previousPrompt(_ sender: Any?) {

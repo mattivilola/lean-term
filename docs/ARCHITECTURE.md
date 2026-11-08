@@ -125,6 +125,40 @@ falls back to the default app when not installed), the default app, or a chosen 
 `Preferences.fileOpener`. A folder types `cd -- <escaped path>` when a local shell is at its prompt and otherwise,
 or with ⌘⇧, opens a new tab there.
 
+## Find
+
+Find (⌘F, toolbar button, Edit › Find) opens a compact bar at the top of the focused pane, inside the pane view so
+the terminal moves down instead of being covered (`FindBarView`; Esc or Done closes it and returns focus to the
+terminal). `LeanTerminalView` overrides SwiftTerm's `performFindPanelAction` / `performTextFinderAction`, so every
+existing menu item, shortcut and toolbar action (Find, Find Next ⌘G, Find Previous ⇧⌘G, use selection) reaches the
+pane's `FindController`; SwiftTerm's own bar and `findNext` stay untouched (the smoke check still uses
+`findNext`). The field editor forwards the same actions, so ⌘G works while the field has focus. "Aa" (match case)
+and ".*" (regular expression) persist as `findMatchCase` / `findUseRegex`; a change in one pane updates all panes
+through `Preferences`. Each pane keeps its own query while its bar is open.
+
+`TerminalSearch` (Core, pure) searches an array of row strings, literally or with `NSRegularExpression`, and returns
+matches as row, start column, end row and end column (wide characters count two columns, via the same helpers as
+path detection). Soft-wrapped lines (`isWrapped` from the content snapshot) are joined so a match can continue on the
+next row; rows that wrap are padded to the column count first because their trailing blanks are trimmed. Matches
+are capped at 10,000 ("10,000+"); an empty query or a zero-length regex match finds nothing; a bad pattern reports
+"Invalid pattern".
+
+Cost model: nothing runs while the bar is closed. Typing waits 120 ms (one `DispatchWorkItem`), then the search
+copies the buffer text with SwiftTerm's public `terminalContentSnapshot(region: .rows)` in chunks of 1,000 rows on a
+background task (a few milliseconds of terminal lock per chunk, so output and drawing are never stalled; about 0.5 s
+for 100,000 lines) and searches it there (about 30 ms literal, 130 ms regex over 100,000 lines). Rows are kept as
+scroll-invariant numbers, so results stay correct while old scrollback is trimmed. The full-screen (alternate)
+buffer is searched while it is showing. New PTY output re-runs the search coalesced into one work item, at most
+four times a second and never more often than ten times the last search took; hidden panes do not search.
+
+Presentation: `FindHighlightView` is a hit-test-transparent, never-drawing layer view above the terminal (like
+`PathHighlightView`). Visible matches (found with a binary search over the sorted list) get theme-phosphor rounded
+rectangles at 22 %; the current match gets 45 % and a 1 px phosphor border. They are recomputed on scroll, layout and
+new results. Choosing the current match selects it (`selectBufferCells(from:to:)`, so ⌘C copies it) and centres it
+when it is not on screen. `selectBufferCells` is the one SwiftTerm API that was missing, added to the existing
+"prompts" patch in `script/prepare_dependency.py` (selecting an exact cell range of the buffer needs the internal
+selection service).
+
 ## macOS integration
 
 Open requests (`application(_:open:)`) turn folders into a tab at that folder, `.command`/`.tool`

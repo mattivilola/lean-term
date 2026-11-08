@@ -80,6 +80,9 @@ public struct Preferences: Equatable, Sendable {
     /// Slightly dims split panes other than the focused one.
     public var dimInactivePanes = true
     public var fileOpener = FileOpenerChoice.leanVSCode
+    /// The find bar's "Aa" and ".*" toggles.
+    public var findMatchCase = false
+    public var findUseRegex = false
     /// The dropdown terminal that a global shortcut toggles.
     public var quickTerminalEnabled = true
     public var quickTerminalHotKey = QuickTerminalHotKey.default
@@ -114,6 +117,8 @@ public struct Preferences: Equatable, Sendable {
         redactCopies = defaults.bool(forKey: "redactCopies")
         dimInactivePanes = defaults.object(forKey: "dimInactivePanes") == nil ? true : defaults.bool(forKey: "dimInactivePanes")
         fileOpener = FileOpenerChoice(rawValue: defaults.string(forKey: "fileOpener") ?? "") ?? .leanVSCode
+        findMatchCase = defaults.bool(forKey: "findMatchCase")
+        findUseRegex = defaults.bool(forKey: "findUseRegex")
         quickTerminalEnabled = defaults.object(forKey: "quickTerminalEnabled") == nil ? true : defaults.bool(forKey: "quickTerminalEnabled")
         quickTerminalHidesOnDeactivate = defaults.object(forKey: "quickTerminalHidesOnDeactivate") == nil ? true : defaults.bool(forKey: "quickTerminalHidesOnDeactivate")
         quickTerminalHotKey = defaults.data(forKey: "quickTerminalHotKey")
@@ -141,7 +146,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "findMatchCase", "findUseRegex", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -169,6 +174,8 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(redactCopies, forKey: "redactCopies")
         defaults.set(dimInactivePanes, forKey: "dimInactivePanes")
         defaults.set(fileOpener.rawValue, forKey: "fileOpener")
+        defaults.set(findMatchCase, forKey: "findMatchCase")
+        defaults.set(findUseRegex, forKey: "findUseRegex")
         defaults.set(quickTerminalEnabled, forKey: "quickTerminalEnabled")
         defaults.set(try? JSONEncoder().encode(quickTerminalHotKey), forKey: "quickTerminalHotKey")
         defaults.set(quickTerminalHidesOnDeactivate, forKey: "quickTerminalHidesOnDeactivate")

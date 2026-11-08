@@ -150,6 +150,16 @@ PROMPT_API = '''
                                    end: Position(col: max(0, terminal.cols - 1), row: rows.upperBound))
         }
     }
+
+    /// Selects from the cell `start` up to, not including, the cell `end` (buffer rows and columns, as SwiftTerm's own search does),
+    /// so a find match, which may wrap onto further rows, can be copied. Does nothing for an empty range.
+    public func selectBufferCells(from start: (row: Int, column: Int), to end: (row: Int, column: Int)) {
+        guard end.row > start.row || (end.row == start.row && end.column > start.column) else { return }
+        withTerminal { _ in
+            selection.setSelection(start: Position(col: start.column, row: start.row),
+                                   end: Position(col: end.column, row: end.row))
+        }
+    }
 '''
 
 def prompts(text):
@@ -258,7 +268,7 @@ patches = [
      '71cf47429151843315b8875cd6ac75ac5006fe2fdcf925fdaf6861435804be52', ()),
     ('Sources/SwiftTerm/Mac/MacTerminalView.swift', prompts,
      '1c0a7c55bc5bd8bada43ebb1645c769f0495a0eed6ad8cef880d4164afb0fd92',
-     '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4',)),
+     '1cb4e9f5d74ba92e59d842f9dc3fee3e8a0802582c87acdca6e0b572e7cc5082', ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4', '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', '5eda0fc3e989240ed57934b2f294a607be675b08390f195926f2e813dccc533a')),
     ('Sources/SwiftTerm/BufferLine.swift', bufferline,
      '206860afb27a442f7fac621d6961ad92e433686e8334b09ee742680104639d2c',
      'e3c63bec7d4c29112a48e9ff76aa366e485c5be830c9b7ee3b09783b6ea95b76', ()),

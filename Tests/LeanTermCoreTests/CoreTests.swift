@@ -44,6 +44,7 @@ import Testing
     value.restoreSessions = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.showCommandStatus = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
+    value.findMatchCase = true; value.findUseRegex = true
     value.quickTerminalEnabled = false; value.quickTerminalHidesOnDeactivate = false
     value.quickTerminalHotKey = QuickTerminalHotKey(keyCode: 49, key: " ", modifiers: [.control, .option])
     value.save(to: defaults)

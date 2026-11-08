@@ -645,6 +645,12 @@ extension TerminalWindow: TerminalPaneHost {
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool) { if pane === focusedPane { restart.isHidden = hidden } }
     func pane(_ pane: TerminalPane, didChangeDimensions text: String) { if pane === focusedPane { dimensions.stringValue = text } }
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int) { showCopyNotice(removed: removed) }
+    func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool) {
+        guard var value = app?.preferences else { return }
+        value.findMatchCase = matchCase
+        value.findUseRegex = regex
+        app?.updatePreferences(value)
+    }
     func paneDidDisableMultilinePasteConfirmation(_ pane: TerminalPane) {
         guard var value = app?.preferences else { return }
         value.confirmMultilinePaste = false

@@ -48,6 +48,8 @@ protocol TerminalPaneHost: AnyObject {
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool)
     func pane(_ pane: TerminalPane, didChangeDimensions text: String)
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int)
+    /// The user flipped the find bar's "Aa" or ".*" toggle.
+    func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool)
     func paneDidDisableMultilinePasteConfirmation(_ pane: TerminalPane)
 
     /// The shell ended and the pane should go away (the closing state, or close-on-exit).
@@ -70,6 +72,10 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private let scanner = ActivityScannerView()
     private let scannerPulse = ScannerPulseView()
     private let statusMargin = CommandStatusView()
+    private let find: FindController
+    /// The terminal's top edge: the pane's padding, or just below the find bar while it is open.
+    private var terminalTopClosed: NSLayoutConstraint!
+    private var terminalTopOpen: NSLayoutConstraint!
     private let activityCounter = SessionActivityCounter()
     private var activityModel = SessionActivityModel()
     private(set) var finishedUnseen = false {
@@ -160,6 +166,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
         terminal = LeanTerminalView(frame: .zero, font: font,
             options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: preferences.scrollbackLines))
+        find = FindController(terminal: terminal)
         super.init()
         terminal.processDelegate = self
         installOutputHandler()
@@ -195,8 +202,27 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             terminal.window?.makeFirstResponder(terminal)
             terminal.selectCommandOutput(promptRow: promptRow)
         }
-        terminal.onScrolled = { [weak self] in self?.scheduleStatusRefresh() }
+        terminal.onScrolled = { [weak self] in
+            self?.scheduleStatusRefresh()
+            self?.find.updateHighlights()
+        }
         view.addSubview(statusMargin)
+        find.bar.setOptions(matchCase: preferences.findMatchCase, regex: preferences.findUseRegex)
+        find.isPaneVisible = { [weak self] in self.map { $0.host?.isPaneVisible($0) ?? false } ?? false }
+        find.onOptionsChanged = { [weak self] matchCase, regex in
+            guard let self else { return }
+            host?.pane(self, didChangeFindMatchCase: matchCase, regex: regex)
+        }
+        find.onVisibilityChanged = { [weak self] in
+            guard let self else { return }
+            let open = find.isOpen
+            terminalTopClosed.isActive = !open
+            terminalTopOpen.isActive = open
+            view.layoutSubtreeIfNeeded()
+        }
+        view.addSubview(find.bar)
+        terminalTopClosed = terminal.topAnchor.constraint(equalTo: view.topAnchor, constant: 12)
+        terminalTopOpen = terminal.topAnchor.constraint(equalTo: find.bar.bottomAnchor, constant: 4)
         NSLayoutConstraint.activate([
             scanner.topAnchor.constraint(equalTo: view.topAnchor, constant: 5),
             scanner.heightAnchor.constraint(equalToConstant: 2),
@@ -210,7 +236,10 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             statusMargin.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             statusMargin.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             statusMargin.trailingAnchor.constraint(equalTo: terminal.leadingAnchor),
-            terminal.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+            terminalTopClosed,
+            find.bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
+            find.bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            find.bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             terminal.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             terminal.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
             terminal.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -250,6 +279,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.terminal.outputArrived()
+                    self.find.contentMayHaveChanged()
                     self.host?.paneDidReceiveOutput(self)
                     self.scheduleStatusRefresh()
                 }
@@ -362,6 +392,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         if visible != wasVisible {
             wasVisible = visible
             scheduleStatusRefresh()
+            if visible { find.contentMayHaveChanged() }
         }
     }
 
@@ -384,6 +415,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
         terminal.optionAsMetaKey = value.optionAsMeta
+        find.setOptions(matchCase: value.findMatchCase, regex: value.findUseRegex)
         terminal.confirmsMultilinePaste = value.confirmMultilinePaste
         terminal.redactsCopies = value.redactCopies
         terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
@@ -399,6 +431,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         terminal.selectedTextBackgroundColor = theme.selection
         terminal.selectedTextForegroundColor = theme.foreground
         scanner.applyAccent(theme.phosphor)
+        find.applyTheme(theme)
         statusMargin.colorForOutcome = { [weak self] in self?.theme.commandColor($0) ?? .labelColor }
         scheduleStatusRefresh()
         terminal.progressBarColor = theme.phosphor
@@ -503,6 +536,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
         dimensionsText = "\(newCols) × \(newRows)"
         scheduleStatusRefresh()
+        find.contentMayHaveChanged()
         host?.pane(self, didChangeDimensions: dimensionsText)
     }
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
