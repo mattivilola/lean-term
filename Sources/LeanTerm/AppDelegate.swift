@@ -429,6 +429,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func updatePreferences(_ value: Preferences) {
         var value = value
         value.fontSize = Preferences.validFontSize(value.fontSize)
+        value.lineSpacing = Preferences.validLineSpacing(value.lineSpacing)
         value.scrollbackLines = Preferences.validScrollback(value.scrollbackLines)
         guard value != preferences else { return }
         let previous = preferences

@@ -6,6 +6,7 @@
 - Command status (with shell integration): a green, red or amber bar beside each finished command (hover for the exit code, click to select its output), a red scanner pulse when a command fails, red finished-tab rings and "Failed (exit N)" notifications.
 - New Find bar: searches the whole scrollback with match-case and regular-expression options, shows "3 of 17", highlights every visible match and selects the current one.
 - Rearrange split panes: drag the grip on a pane's top edge to dock it beside another pane or swap them, or use Move Pane (⌃⌥⌘arrows).
+- Appearance: optional blinking cursor (steady while typing and with Reduce Motion), line spacing from 1.00× to 1.60×, and every installed monospaced font in the Font menu.
 - Configurable scrollback in Settings › Terminal (1,000 to 100,000 lines), applied to open tabs immediately.
 - Settings regrouped into Appearance, General, Terminal, Activity, Hosts and Updates pages.
 - New Tab and New Window open in the current folder even while Lean Term is in the background.

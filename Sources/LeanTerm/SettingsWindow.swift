@@ -11,6 +11,20 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let size = NSSlider(value: 13, minValue: 10, maxValue: 32, target: nil, action: nil)
     private let sizeLabel = NSTextField(labelWithString: "13 pt")
     private let cursor = NSPopUpButton()
+    private let cursorBlink = NSButton(checkboxWithTitle: "Blink cursor", target: nil, action: nil)
+    private let lineSpacing = NSSlider(value: 1, minValue: 1, maxValue: 1.6, target: nil, action: nil)
+    private let lineSpacingLabel = NSTextField(labelWithString: "1.00×")
+    /// Installed fixed-pitch families; read from the font manager the first time Settings opens.
+    private static let fixedPitchFamilies: [String] = {
+        let manager = NSFontManager.shared
+        var seen = Set<String>()
+        return manager.availableFontFamilies.filter { family in
+            guard family != "SF Mono", seen.insert(family).inserted,
+                  let member = manager.availableMembers(ofFontFamily: family)?.first,
+                  let name = member[0] as? String, let font = NSFont(name: name, size: 12) else { return false }
+            return font.isFixedPitch
+        }.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }()
     private let option = NSButton(checkboxWithTitle: "Use Option as Meta", target: nil, action: nil)
     private let closeOnExit = NSButton(checkboxWithTitle: "Close tab when shell exits", target: nil, action: nil)
     private let quitAfterLast = NSButton(checkboxWithTitle: "Quit when last tab/window closes", target: nil, action: nil)
@@ -73,10 +87,18 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let heading = NSStackView(views: [icon, names]); heading.spacing = 14
 
         for control in [appearance, palette] { control.target = self; control.action = #selector(changed) }
-        font.addItems(withTitles: ["SF Mono", "Menlo", "Monaco", "Courier"])
         font.target = self; font.action = #selector(changed)
         cursor.addItems(withTitles: Preferences.Cursor.allCases.map(\.title))
         cursor.target = self; cursor.action = #selector(changed)
+        cursorBlink.target = self; cursorBlink.action = #selector(changed)
+        let cursorRow = NSStackView(views: [cursor, cursorBlink]); cursorRow.spacing = 14
+        lineSpacing.target = self; lineSpacing.action = #selector(changed); lineSpacing.isContinuous = true
+        lineSpacing.numberOfTickMarks = 13; lineSpacing.allowsTickMarkValuesOnly = true
+        lineSpacing.setAccessibilityLabel("Line spacing")
+        lineSpacingLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        lineSpacingLabel.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        let spacingRow = NSStackView(views: [lineSpacing, lineSpacingLabel]); spacingRow.spacing = 10
+        lineSpacing.widthAnchor.constraint(equalToConstant: 210).isActive = true
         size.target = self; size.action = #selector(changed); size.isContinuous = true
         size.setAccessibilityLabel("Font size")
         sizeLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
@@ -88,7 +110,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             [NSTextField(labelWithString: "Palette"), palette],
             [NSTextField(labelWithString: "Font"), font],
             [NSTextField(labelWithString: "Text size"), sizeRow],
-            [NSTextField(labelWithString: "Cursor"), cursor]
+            [NSTextField(labelWithString: "Line spacing"), spacingRow],
+            [NSTextField(labelWithString: "Cursor"), cursorRow]
         ])
         preview.isEditable = false; preview.isSelectable = false
         preview.textContainerInset = NSSize(width: 14, height: 12)
@@ -369,9 +392,11 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let value = app.preferences
         appearance.selectedSegment = Preferences.Appearance.allCases.firstIndex(of: value.appearance) ?? 0
         palette.selectedSegment = Preferences.Palette.allCases.firstIndex(of: value.palette) ?? 0
-        font.selectItem(withTitle: value.fontName)
+        refreshFontMenu(selecting: value.fontName)
         size.doubleValue = value.fontSize; sizeLabel.stringValue = "\(Int(value.fontSize)) pt"
+        lineSpacing.doubleValue = value.lineSpacing; lineSpacingLabel.stringValue = String(format: "%.2f×", value.lineSpacing)
         cursor.selectItem(withTitle: value.cursor.title)
+        cursorBlink.state = value.cursorBlink ? .on : .off
         scrollback.selectItem(at: Preferences.scrollbackChoices.firstIndex(of: value.scrollbackLines) ?? 2)
         option.state = value.optionAsMeta ? .on : .off
         confirmPaste.state = value.confirmMultilinePaste ? .on : .off
@@ -402,16 +427,44 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let theme = TerminalTheme(palette: value.palette, dark: dark)
         preview.backgroundColor = theme.background
         preview.string = "❯ echo 'Less noise. More flow.'\nLess noise. More flow."
-        preview.font = TerminalFont.make(name: value.fontName, size: min(value.fontSize, 16))
-        preview.textColor = theme.foreground
+        let cursorGlyph = switch value.cursor { case .bar: "▏"; case .block: "█"; case .underline: "_" }
+        preview.string += cursorGlyph
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineHeightMultiple = value.lineSpacing
+        let whole = NSRange(location: 0, length: (preview.string as NSString).length)
+        preview.textStorage?.setAttributes([.font: TerminalFont.make(name: value.fontName, size: min(value.fontSize, 16)),
+                                            .foregroundColor: theme.foreground, .paragraphStyle: paragraph], range: whole)
         preview.textStorage?.addAttribute(.foregroundColor, value: theme.accent, range: NSRange(location: 0, length: 1))
+        preview.textStorage?.addAttribute(.foregroundColor, value: theme.accent, range: NSRange(location: whole.length - 1, length: 1))
     }
+    /// SF Mono first, then every installed fixed-pitch family; a saved font that is gone stays visible as missing.
+    private func refreshFontMenu(selecting name: String) {
+        let families = Self.fixedPitchFamilies
+        font.removeAllItems()
+        func add(_ title: String, name: String) {
+            font.menu?.addItem(withTitle: title, action: nil, keyEquivalent: "")
+            font.lastItem?.representedObject = name
+        }
+        add("SF Mono", name: "SF Mono")
+        font.menu?.addItem(.separator())
+        for family in families { add(family, name: family) }
+        if name != "SF Mono", !families.contains(name) {
+            font.menu?.insertItem(withTitle: "\(name) (missing)", action: nil, keyEquivalent: "", at: 0)
+            font.item(at: 0)?.representedObject = name
+            font.selectItem(at: 0)
+        } else {
+            font.selectItem(at: font.indexOfItem(withRepresentedObject: name))
+        }
+    }
+
     @objc private func changed() {
         guard let app else { return }
         var value = app.preferences
         value.appearance = Preferences.Appearance.allCases[max(0, appearance.selectedSegment)]
         value.palette = Preferences.Palette.allCases[max(0, palette.selectedSegment)]
-        value.fontName = font.titleOfSelectedItem ?? "SF Mono"
+        value.fontName = font.selectedItem?.representedObject as? String ?? "SF Mono"
+        value.lineSpacing = Preferences.validLineSpacing(lineSpacing.doubleValue)
+        value.cursorBlink = cursorBlink.state == .on
         value.fontSize = size.doubleValue.rounded()
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
         value.scrollbackLines = Preferences.scrollbackChoices[max(0, scrollback.indexOfSelectedItem)]

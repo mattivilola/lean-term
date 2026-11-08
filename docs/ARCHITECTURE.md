@@ -271,6 +271,10 @@ an additional upstream pending-signal change. Keep this patch small and review i
 when updating the dependency. Upstream's license is retained in
 [third-party notices](../THIRD_PARTY_NOTICES.md).
 
+## Fonts, cursor and line spacing
+
+The Font setting offers SF Mono plus every installed fixed-pitch family, read from `NSFontManager` the first time Settings opens; a saved font that is no longer installed is shown as missing and renders in SF Mono. Line spacing is applied through SwiftTerm's `lineSpacing`, so `cellMetrics()` and pane minimum sizes keep deriving cell height from `getOptimalFrameSize()`; the blinking cursor variants fall back to steady while Reduce Motion is on.
+
 ## Scope
 
 This first usable v1 includes local shells, native windows/tabs, Find, configurable

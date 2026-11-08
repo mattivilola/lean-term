@@ -61,6 +61,10 @@ public struct Preferences: Equatable, Sendable {
     public var fontName = "SF Mono"
     public var fontSize: Double = 13
     public var cursor: Cursor = .bar
+    /// Blinks the cursor; the terminal keeps it steady when Reduce Motion is on.
+    public var cursorBlink = false
+    /// Multiplier for the terminal's row height, 1.0…1.6 in 0.05 steps.
+    public var lineSpacing: Double = 1.0
     public var optionAsMeta = false
     public var showResourceUsage = true
     public var showActivityScanner = true
@@ -101,6 +105,8 @@ public struct Preferences: Equatable, Sendable {
         fontSize = Self.validFontSize(size)
         scrollbackLines = Self.validScrollback(defaults.object(forKey: "scrollbackLines") as? Int ?? 10_000)
         cursor = Cursor(rawValue: defaults.string(forKey: "cursor") ?? "") ?? .bar
+        cursorBlink = defaults.bool(forKey: "cursorBlink")
+        lineSpacing = Self.validLineSpacing(defaults.object(forKey: "lineSpacing") as? Double ?? 1.0)
         optionAsMeta = defaults.bool(forKey: "optionAsMeta")
         showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
         showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
@@ -138,6 +144,12 @@ public struct Preferences: Equatable, Sendable {
         value.isFinite ? min(32, max(10, value)) : 13
     }
 
+    /// Clamps to 1.0…1.6 and snaps to 0.05 steps.
+    public static func validLineSpacing(_ value: Double) -> Double {
+        guard value.isFinite else { return 1.0 }
+        return (min(1.6, max(1.0, value)) * 20).rounded() / 20
+    }
+
     /// Snaps any value to the nearest allowed scrollback size; ties go to the larger one.
     public static func validScrollback(_ value: Int) -> Int {
         scrollbackChoices.min { (abs($0 - value), -$0) < (abs($1 - value), -$1) } ?? 10_000
@@ -146,7 +158,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         SessionWorkspace.clear(in: defaults)
-        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "findMatchCase", "findUseRegex", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
+        for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "cursorBlink", "lineSpacing", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "findMatchCase", "findUseRegex", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -158,6 +170,8 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(Self.validFontSize(fontSize), forKey: "fontSize")
         defaults.set(Self.validScrollback(scrollbackLines), forKey: "scrollbackLines")
         defaults.set(cursor.rawValue, forKey: "cursor")
+        defaults.set(cursorBlink, forKey: "cursorBlink")
+        defaults.set(Self.validLineSpacing(lineSpacing), forKey: "lineSpacing")
         defaults.set(optionAsMeta, forKey: "optionAsMeta")
         defaults.set(showResourceUsage, forKey: "showResourceUsage")
         defaults.set(showActivityScanner, forKey: "showActivityScanner")

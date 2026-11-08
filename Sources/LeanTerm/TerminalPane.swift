@@ -169,9 +169,11 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         currentDirectory = launch.directory
         statusText = launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
         let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
-        let cursor: CursorStyle = preferences.cursor == .bar ? .steadyBar : (preferences.cursor == .block ? .steadyBlock : .steadyUnderline)
+        let cursor = Self.cursorStyle(for: preferences)
         terminal = LeanTerminalView(frame: .zero, font: font,
             options: TerminalOptions(cols: 110, rows: 32, cursorStyle: cursor, scrollback: preferences.scrollbackLines))
+        terminal.lineSpacing = CGFloat(preferences.lineSpacing)
+        terminal.cursorBlinkResetsOnInput = true
         find = FindController(terminal: terminal)
         super.init()
         terminal.processDelegate = self
@@ -331,7 +333,20 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         return activityModel.needsPolling
     }
 
-    func motionOptionsChanged() { scanner.motionOptionsChanged() }
+    func motionOptionsChanged() {
+        scanner.motionOptionsChanged()
+        terminal.setCursorStyle(Self.cursorStyle(for: preferences))
+    }
+
+    /// The blinking variants only when asked for and Reduce Motion is off; typing pauses the blink.
+    private static func cursorStyle(for preferences: Preferences) -> CursorStyle {
+        let blink = preferences.cursorBlink && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        switch preferences.cursor {
+        case .bar: return blink ? .blinkBar : .steadyBar
+        case .block: return blink ? .blinkBlock : .steadyBlock
+        case .underline: return blink ? .blinkUnderline : .steadyUnderline
+        }
+    }
 
     /// Looks the foreground leader up once per job start, never per tick. A leader still named like the
     /// shell has been forked but may not have exec'd its command yet, so it is read again next sample.
@@ -428,11 +443,13 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         }
         let font = TerminalFont.make(name: value.fontName, size: value.fontSize)
         if terminal.font != font { terminal.font = font }
+        let spacing = CGFloat(value.lineSpacing)
+        if terminal.lineSpacing != spacing { terminal.lineSpacing = spacing }
         terminal.optionAsMetaKey = value.optionAsMeta
         find.setOptions(matchCase: value.findMatchCase, regex: value.findUseRegex)
         terminal.confirmsMultilinePaste = value.confirmMultilinePaste
         terminal.redactsCopies = value.redactCopies
-        terminal.setCursorStyle(value.cursor == .bar ? .steadyBar : (value.cursor == .block ? .steadyBlock : .steadyUnderline))
+        terminal.setCursorStyle(Self.cursorStyle(for: value))
         scheduleStatusRefresh()
     }
 
