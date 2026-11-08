@@ -403,6 +403,21 @@ preference, and the last pane closes the tab. Workspace saving records each tab'
 layout (shape, axes, ratios, every pane's folder, focused pane) so reopening on
 launch restores the splits with fresh shells; zoom is not persisted.
 
+Panes can be rearranged within a tab. `PaneLayout.moving(_:to:edge:)` takes a pane out and
+splits the target on one side (ratio 0.5); `swapping(_:_:)` exchanges two leaves and keeps
+the shape. Terminal › Move Pane Left/Right/Up/Down (⌃⌥⌘ arrows, in the "new actions" set of
+the shortcut map) swap the focused pane with its geometric neighbour. For the mouse,
+`PaneGripView` covers the 12 pt top padding of each pane: after a 150 ms hover it fades in
+a small grip (only with several panes and no zoom). Dragging the grip is plain
+`mouseDown`/`mouseDragged`/`mouseUp` on that view, forwarded to `PaneDragController`, which
+dims the source pane to 0.6, finds the pane under the pointer in the pane area and shows a
+phosphor `DropIndicatorView`: the nearest half of the target, or the whole target (swap) in
+its central 30%. The overlay animates its frame for 100 ms unless Reduce Motion is on.
+Dropping applies `moving` or `swapping` and rebuilds the split views around the existing
+pane views (no pane or shell is recreated); Esc, a drop outside any other pane, or any
+layout rebuild cancels. Drags stay inside one tab. The controller holds an Esc key monitor
+and disabled cursor rects only while a drag is running.
+
 ## Command palette
 
 Terminal › Command Palette… (⇧⌘P, in the shortcut map) opens `CommandPalette`, a borderless

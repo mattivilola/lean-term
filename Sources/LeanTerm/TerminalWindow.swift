@@ -21,6 +21,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     private(set) var layout: PaneLayout
     private(set) var isZoomed = false
     private let paneArea = NSView()
+    private lazy var paneDrag = PaneDragController(area: paneArea)
     private var splitViews: [PaneSplitView] = []
     private var applyingRatios = false
     private var smokeMode = false
@@ -460,6 +461,26 @@ extension TerminalWindow {
         window?.makeFirstResponder(pane.terminal)
     }
 
+    /// Swaps the focused pane with its neighbour in a direction.
+    func movePane(_ direction: PaneLayout.Direction) {
+        guard !isZoomed, let id = layout.neighbour(of: focusedPane.id, direction) else { return }
+        reorder(focusedPane, layout.swapping(focusedPane.id, id))
+    }
+
+    /// Applies a drag-and-drop result: the pane lands beside the target or swaps with it.
+    private func drop(_ pane: TerminalPane, _ drop: PaneDrop) {
+        reorder(pane, drop.edge.map { layout.moving(pane.id, to: drop.target, edge: $0) } ?? layout.swapping(pane.id, drop.target))
+    }
+
+    /// Adopts a rearranged layout by reparenting the existing pane views; the pane keeps focus.
+    private func reorder(_ pane: TerminalPane, _ arranged: PaneLayout) {
+        guard arranged != layout, panes.contains(where: { $0 === pane }) else { return }
+        layout = arranged
+        syncPanes()
+        rebuildLayout()
+        window?.makeFirstResponder(pane.terminal)
+    }
+
     func toggleZoom() {
         guard panes.count > 1 || isZoomed else { return }
         isZoomed.toggle()
@@ -501,6 +522,7 @@ extension TerminalWindow {
 
     /// Rebuilds the split views around the existing pane views. Panes are never recreated.
     private func rebuildLayout() {
+        paneDrag.cancel()
         applyingRatios = true
         defer { applyingRatios = false }
         splitViews = []
@@ -617,6 +639,19 @@ extension TerminalWindow: NSSplitViewDelegate {
 }
 
 extension TerminalWindow: TerminalPaneHost {
+    func paneAllowsReordering(_ pane: TerminalPane) -> Bool { panes.count > 1 && !isZoomed }
+    func pane(_ pane: TerminalPane, gripDragged phase: PaneGripPhase, at windowPoint: NSPoint) {
+        switch phase {
+        case .began:
+            guard paneAllowsReordering(pane) else { return }
+            paneDrag.begin(pane, theme: theme)
+        case .moved:
+            paneDrag.move(to: windowPoint, panes: panes)
+        case .ended:
+            guard let result = paneDrag.finish(at: windowPoint, panes: panes) else { return }
+            drop(result.pane, result.drop)
+        }
+    }
     func isPaneVisible(_ pane: TerminalPane) -> Bool { isResourceDisplayVisible }
     func isPaneBeingViewed(_ pane: TerminalPane) -> Bool { pane === focusedPane && isBeingViewed }
     func permitsAutomaticClose(for pane: TerminalPane) -> Bool {

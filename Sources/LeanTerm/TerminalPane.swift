@@ -30,6 +30,11 @@ protocol TerminalPaneHost: AnyObject {
     /// Whether a shell exit may close the pane automatically (no quit in progress, no sheet to preserve).
     func permitsAutomaticClose(for pane: TerminalPane) -> Bool
 
+    /// The pane may be rearranged now: the tab has several panes and is not zoomed.
+    func paneAllowsReordering(_ pane: TerminalPane) -> Bool
+    /// A drag that started on the pane's grip began, moved or ended at a point in window coordinates.
+    func pane(_ pane: TerminalPane, gripDragged phase: PaneGripPhase, at windowPoint: NSPoint)
+
     /// Directory, remote location or foreground session changed: subtitle, tab label and represented URL.
     func paneDidChangeLocation(_ pane: TerminalPane)
     /// The pane's working directory changed (the window's represented URL).
@@ -71,6 +76,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     weak var host: TerminalPaneHost?
     private let scanner = ActivityScannerView()
     private let scannerPulse = ScannerPulseView()
+    private let grip = PaneGripView()
     private let statusMargin = CommandStatusView()
     private let find: FindController
     /// The terminal's top edge: the pane's padding, or just below the find bar while it is open.
@@ -195,6 +201,10 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         view.addSubview(scanner)
         scannerPulse.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scannerPulse)
+        grip.translatesAutoresizingMaskIntoConstraints = false
+        grip.isAvailable = { [weak self] in self.map { $0.host?.paneAllowsReordering($0) ?? false } ?? false }
+        grip.onDrag = { [weak self] phase, point in self.map { $0.host?.pane($0, gripDragged: phase, at: point) } }
+        view.addSubview(grip)
         statusMargin.translatesAutoresizingMaskIntoConstraints = false
         statusMargin.colorForOutcome = { [weak self] in self?.theme.commandColor($0) ?? .labelColor }
         statusMargin.onSelect = { [weak self] promptRow in
@@ -232,6 +242,10 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             scannerPulse.heightAnchor.constraint(equalTo: scanner.heightAnchor),
             scannerPulse.leadingAnchor.constraint(equalTo: scanner.leadingAnchor),
             scannerPulse.trailingAnchor.constraint(equalTo: scanner.trailingAnchor),
+            grip.topAnchor.constraint(equalTo: view.topAnchor),
+            grip.heightAnchor.constraint(equalToConstant: PaneGripView.stripHeight),
+            grip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            grip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             statusMargin.topAnchor.constraint(equalTo: view.topAnchor),
             statusMargin.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             statusMargin.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -431,6 +445,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         terminal.selectedTextBackgroundColor = theme.selection
         terminal.selectedTextForegroundColor = theme.foreground
         scanner.applyAccent(theme.phosphor)
+        grip.applyTheme(theme)
         find.applyTheme(theme)
         statusMargin.colorForOutcome = { [weak self] in self?.theme.commandColor($0) ?? .labelColor }
         scheduleStatusRefresh()

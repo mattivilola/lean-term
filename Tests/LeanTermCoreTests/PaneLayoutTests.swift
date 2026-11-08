@@ -34,6 +34,16 @@ import Testing
         Issue.record("Expected nested splits"); return
     }
     #expect(abs(ratio - 1.0 / 3.0) < 1e-9 && abs(inner - 0.5) < 1e-9)
+    // Moving takes a pane out and splits the target on the dropped side.
+    #expect(layout.moving(c, to: a, edge: .left) == .split(axis: .horizontal, ratio: 0.5,
+        first: .split(axis: .horizontal, ratio: 0.5, first: .pane(c), second: .pane(a)), second: .pane(b)))
+    #expect(layout.moving(a, to: c, edge: .top) == .split(axis: .vertical, ratio: 0.5, first: .pane(b),
+        second: .split(axis: .vertical, ratio: 0.5, first: .pane(a), second: .pane(c))))
+    #expect(layout.moving(a, to: a, edge: .right) == layout && layout.moving(d, to: a, edge: .right) == layout)
+    #expect(layout.moving(a, to: b, edge: .bottom).paneIDs == [b, a, c])
+    // Swapping exchanges positions and keeps the shape.
+    #expect(layout.swapping(a, c) == .split(axis: .horizontal, ratio: 0.5, first: .pane(c),
+        second: .split(axis: .vertical, ratio: 0.5, first: .pane(b), second: .pane(a))))
     // The tree survives encoding.
     let decoded = try JSONDecoder().decode(PaneLayout.self, from: JSONEncoder().encode(row))
     #expect(decoded == row)

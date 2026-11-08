@@ -572,6 +572,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc private func selectPaneRight(_ sender: Any?) { activeSession?.selectPane(.right) }
     @objc private func selectPaneAbove(_ sender: Any?) { activeSession?.selectPane(.up) }
     @objc private func selectPaneBelow(_ sender: Any?) { activeSession?.selectPane(.down) }
+    @objc private func movePaneLeft(_ sender: Any?) { activeSession?.movePane(.left) }
+    @objc private func movePaneRight(_ sender: Any?) { activeSession?.movePane(.right) }
+    @objc private func movePaneUp(_ sender: Any?) { activeSession?.movePane(.up) }
+    @objc private func movePaneDown(_ sender: Any?) { activeSession?.movePane(.down) }
     @objc private func zoomPane(_ sender: Any?) { activeSession?.toggleZoom() }
     @objc private func equalizePanes(_ sender: Any?) { activeSession?.equalizePanes() }
     /// File › Close: the focused pane of a split tab, otherwise the window or tab as before.
@@ -641,7 +645,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return activeSession != nil && !terminationPending
         }
         if [#selector(selectPaneLeft), #selector(selectPaneRight), #selector(selectPaneAbove), #selector(selectPaneBelow),
-            #selector(zoomPane), #selector(equalizePanes)].contains(menuItem.action) {
+            #selector(zoomPane), #selector(equalizePanes),
+            #selector(movePaneLeft), #selector(movePaneRight), #selector(movePaneUp), #selector(movePaneDown)].contains(menuItem.action) {
             return (activeSession?.panes.count ?? 0) > 1
         }
         if [#selector(clearScreenAndScrollback), #selector(largerFont), #selector(smallerFont), #selector(resetFont)].contains(menuItem.action) {
@@ -714,6 +719,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         add(terminal, "Select Pane Below", #selector(selectPaneBelow), target: self, shortcut: .selectPaneBelow)
         add(terminal, "Zoom Pane", #selector(zoomPane), target: self, shortcut: .zoomPane)
         add(terminal, "Equalize Panes", #selector(equalizePanes), target: self, shortcut: .equalizePanes)
+        add(terminal, "Move Pane Left", #selector(movePaneLeft), target: self, shortcut: .movePaneLeft)
+        add(terminal, "Move Pane Right", #selector(movePaneRight), target: self, shortcut: .movePaneRight)
+        add(terminal, "Move Pane Up", #selector(movePaneUp), target: self, shortcut: .movePaneUp)
+        add(terminal, "Move Pane Down", #selector(movePaneDown), target: self, shortcut: .movePaneDown)
         terminal.addItem(.separator())
         add(terminal, "Previous Prompt", #selector(LeanTerminalView.previousPrompt(_:)), shortcut: .previousPrompt)
         add(terminal, "Next Prompt", #selector(LeanTerminalView.nextPrompt(_:)), shortcut: .nextPrompt)

@@ -6,6 +6,8 @@ public indirect enum PaneLayout: Codable, Equatable, Sendable {
     /// `horizontal` places the two children side by side, `vertical` stacks them (first on top).
     public enum Axis: String, Codable, Sendable { case horizontal, vertical }
     public enum Direction: Sendable { case left, right, up, down }
+    /// The side of a pane that a moved pane is dropped on.
+    public enum Edge: Sendable { case left, right, top, bottom }
 
     case pane(UUID)
     case split(axis: Axis, ratio: Double, first: PaneLayout, second: PaneLayout)
@@ -25,12 +27,35 @@ public indirect enum PaneLayout: Codable, Equatable, Sendable {
 
     /// Puts `new` after `id` along `axis`, sharing the pane's space equally.
     public func splitting(_ id: UUID, with new: UUID, axis: Axis) -> PaneLayout {
+        inserting(new, beside: id, axis: axis, before: false)
+    }
+
+    private func inserting(_ new: UUID, beside id: UUID, axis: Axis, before: Bool) -> PaneLayout {
         switch self {
         case .pane(let existing):
-            existing == id ? .split(axis: axis, ratio: 0.5, first: self, second: .pane(new)) : self
+            guard existing == id else { return self }
+            return .split(axis: axis, ratio: 0.5, first: before ? .pane(new) : self, second: before ? self : .pane(new))
         case .split(let splitAxis, let ratio, let first, let second):
-            .split(axis: splitAxis, ratio: ratio,
-                   first: first.splitting(id, with: new, axis: axis), second: second.splitting(id, with: new, axis: axis))
+            return .split(axis: splitAxis, ratio: ratio,
+                          first: first.inserting(new, beside: id, axis: axis, before: before),
+                          second: second.inserting(new, beside: id, axis: axis, before: before))
+        }
+    }
+
+    /// Takes `pane` out and splits `target` on `edge` for it, sharing the target's space equally.
+    /// Unchanged when either is missing or they are the same pane.
+    public func moving(_ pane: UUID, to target: UUID, edge: Edge) -> PaneLayout {
+        guard pane != target, contains(pane), contains(target), let rest = removing(pane) else { return self }
+        let axis: Axis = edge == .left || edge == .right ? .horizontal : .vertical
+        return rest.inserting(pane, beside: target, axis: axis, before: edge == .left || edge == .top)
+    }
+
+    /// Exchanges the positions of two panes; the shape and ratios stay.
+    public func swapping(_ a: UUID, _ b: UUID) -> PaneLayout {
+        switch self {
+        case .pane(let id): .pane(id == a ? b : id == b ? a : id)
+        case .split(let axis, let ratio, let first, let second):
+            .split(axis: axis, ratio: ratio, first: first.swapping(a, b), second: second.swapping(a, b))
         }
     }
 
