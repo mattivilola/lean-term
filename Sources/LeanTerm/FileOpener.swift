@@ -17,7 +17,22 @@ enum FileOpener {
     static let leanVSCodeSite = URL(string: "https://leanvscode.com")!
 
     static var leanVSCodeURL: URL? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: leanVSCodeBundleID)
+        let installed = URL(fileURLWithPath: "/Applications/Lean VS Code.app", isDirectory: true)
+        if isLeanVSCodeEditor(at: installed) { return installed }
+
+        let userInstalled = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications/Lean VS Code.app", isDirectory: true)
+        if isLeanVSCodeEditor(at: userInstalled) { return userInstalled }
+
+        return NSWorkspace.shared.urlsForApplications(withBundleIdentifier: leanVSCodeBundleID)
+            .first(where: isLeanVSCodeEditor(at:))
+    }
+
+    private static func isLeanVSCodeEditor(at url: URL) -> Bool {
+        guard let bundle = Bundle(url: url), bundle.bundleIdentifier == leanVSCodeBundleID,
+              let resources = bundle.resourceURL else { return false }
+        // The development Electron shell shares the bundle ID but lacks the packaged editor.
+        return FileManager.default.isReadableFile(atPath: resources.appendingPathComponent("app/out/main.js").path)
     }
 
     /// Checks the file system; call only at click time or once per hovered token.
@@ -42,16 +57,17 @@ enum FileOpener {
         switch choice {
         case .leanVSCode:
             guard let app = leanVSCodeURL else { workspace.open(file.url); return }
-            if let line = file.line, let url = leanVSCodeLink(for: file.url, line: line, column: file.column) {
-                workspace.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-            } else {
-                workspace.open([file.url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-            }
+            let url = file.line.flatMap { leanVSCodeLink(for: file.url, line: $0, column: file.column) } ?? file.url
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.allowsRunningApplicationSubstitution = false
+            workspace.open([url], withApplicationAt: app, configuration: configuration)
         case .system:
             workspace.open(file.url)
         case .app(let identifier):
             if let app = applicationURL(for: identifier) {
-                workspace.open([file.url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.allowsRunningApplicationSubstitution = identifier != leanVSCodeBundleID
+                workspace.open([file.url], withApplicationAt: app, configuration: configuration)
             } else {
                 workspace.open(file.url)
             }
@@ -80,6 +96,7 @@ enum FileOpener {
 
     /// The app a saved choice refers to: a bundle identifier, or a path for apps without one.
     static func applicationURL(for identifier: String) -> URL? {
+        if identifier == leanVSCodeBundleID { return leanVSCodeURL }
         if identifier.hasPrefix("/") {
             return FileManager.default.fileExists(atPath: identifier) ? URL(fileURLWithPath: identifier) : nil
         }
