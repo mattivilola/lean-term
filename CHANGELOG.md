@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 — Open files in the installed Lean VS Code
+
+- ⌘-clicking file paths prefers the installed Lean VS Code, even when a development copy is running.
+
 ## 0.6.0 — Quick Terminal and scrollback search
 
 - Quick Terminal: ⌃⌥⌘T (configurable in Settings › General) slides a terminal down from the top of the screen over any app or Space; its shell keeps running while hidden.
