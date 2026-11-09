@@ -90,7 +90,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         window.contentView = surface
         paneArea.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(paneArea)
-        let footer = NSStackView(views: [status, NSView(), restart, resourceStatus, scrollbackStatus, dimensions])
+        let footer = NSStackView(views: [status, NSView(), restart, scrollbackStatus, resourceStatus, dimensions])
         footer.orientation = .horizontal; footer.spacing = 12
         footer.setClippingResistancePriority(.defaultLow, for: .horizontal)
         footer.setVisibilityPriority(.detachOnlyIfNecessary, for: scrollbackStatus)
@@ -232,6 +232,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         tabMark.setSession(focusedPane.sessionMark)
     }
     func windowDidResignKey(_ notification: Notification) { savePlacement(); visibilityChanged() }
+    func windowDidResize(_ notification: Notification) { updateResourceLayout() }
     func windowDidEndLiveResize(_ notification: Notification) { savePlacement() }
     func windowWillEnterFullScreen(_ notification: Notification) { savePlacement(); fullscreenTransition = true }
     func windowDidExitFullScreen(_ notification: Notification) { fullscreenTransition = false; savePlacement() }
@@ -239,11 +240,22 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     func apply(_ value: Preferences) {
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
+        updateResourceLayout()
         for pane in panes { pane.apply(value) }
         updateScrollbackStatus()
         updateSubtitle()
         applyTheme()
         updateDimming()
+    }
+
+    private func updateResourceLayout() {
+        resourceStatus.showsSparklines = (window?.contentView?.bounds.width ?? 0) >= 600
+    }
+
+    func updateResourceUsage() {
+        guard preferences.showResourceUsage, let monitor = app?.metricsMonitor else { return }
+        let pane = focusedPane.runningShellPID == nil ? nil : monitor.paneUsage[focusedPane.id]
+        resourceStatus.update(total: monitor.snapshot, pane: pane)
     }
 
     private func applyTheme() {
@@ -519,6 +531,7 @@ extension TerminalWindow {
         status.stringValue = pane.statusText
         dimensions.stringValue = pane.dimensionsText
         updateScrollbackStatus()
+        updateResourceUsage()
         restart.isHidden = pane.restartHidden
         renderActivity()
         updateDimming()
@@ -700,7 +713,11 @@ extension TerminalWindow: TerminalPaneHost {
         app?.notifier.postFinished(sessionID: pane.id, title: window?.title ?? "Lean Term", duration: duration, exitCode: exitCode)
     }
 
-    func pane(_ pane: TerminalPane, didSetStatus text: String) { if pane === focusedPane { status.stringValue = text } }
+    func pane(_ pane: TerminalPane, didSetStatus text: String) {
+        guard pane === focusedPane else { return }
+        status.stringValue = text
+        updateResourceUsage()
+    }
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool) { if pane === focusedPane { restart.isHidden = hidden } }
     func pane(_ pane: TerminalPane, didChangeDimensions text: String) {
         guard pane === focusedPane else { return }

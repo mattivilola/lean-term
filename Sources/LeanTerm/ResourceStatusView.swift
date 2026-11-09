@@ -7,8 +7,26 @@ final class ResourceStatusView: NSView {
     private let memoryLabel = NSTextField(labelWithString: "MEM —")
     private let cpuGraph = ResourceSparklineView()
     private let memoryGraph = ResourceSparklineView()
+    private static let cpuWidth: CGFloat = 104
+    private static let memoryWidth: CGFloat = 120
+    private static let rowSpacing: CGFloat = 8
+    private static let graphWidth: CGFloat = 32
+    private static let graphSpacing: CGFloat = 4
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 228, height: 18) }
+    var showsSparklines = true {
+        didSet {
+            guard showsSparklines != oldValue else { return }
+            cpuGraph.isHidden = !showsSparklines
+            memoryGraph.isHidden = !showsSparklines
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let labels = Self.cpuWidth + Self.memoryWidth + Self.rowSpacing
+        let graphs = showsSparklines ? 2 * (Self.graphWidth + Self.graphSpacing) : 0
+        return NSSize(width: labels + graphs, height: 18)
+    }
 
     convenience init() {
         self.init(frame: .zero)
@@ -18,13 +36,13 @@ final class ResourceStatusView: NSView {
         super.init(frame: frameRect)
         let cpuRow = NSStackView(views: [cpuLabel, cpuGraph])
         cpuRow.orientation = .horizontal
-        cpuRow.spacing = 4
+        cpuRow.spacing = Self.graphSpacing
         let memoryRow = NSStackView(views: [memoryLabel, memoryGraph])
         memoryRow.orientation = .horizontal
-        memoryRow.spacing = 4
+        memoryRow.spacing = Self.graphSpacing
         let row = NSStackView(views: [cpuRow, memoryRow])
         row.orientation = .horizontal
-        row.spacing = 10
+        row.spacing = Self.rowSpacing
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
 
@@ -44,41 +62,54 @@ final class ResourceStatusView: NSView {
             row.trailingAnchor.constraint(equalTo: trailingAnchor),
             row.centerYAnchor.constraint(equalTo: centerYAnchor),
             heightAnchor.constraint(equalToConstant: 18),
-            cpuLabel.widthAnchor.constraint(equalToConstant: 60),
-            memoryLabel.widthAnchor.constraint(equalToConstant: 86),
-            cpuGraph.widthAnchor.constraint(equalToConstant: 32),
-            memoryGraph.widthAnchor.constraint(equalToConstant: 32)
+            cpuLabel.widthAnchor.constraint(equalToConstant: Self.cpuWidth),
+            memoryLabel.widthAnchor.constraint(equalToConstant: Self.memoryWidth),
+            cpuGraph.widthAnchor.constraint(equalToConstant: Self.graphWidth),
+            memoryGraph.widthAnchor.constraint(equalToConstant: Self.graphWidth)
         ])
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         applyAccent(.controlAccentColor)
-        update(ProcessMetricsSnapshot())
+        update(total: ProcessMetricsSnapshot(), pane: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("Programmatic views only") }
 
-    func update(_ snapshot: ProcessMetricsSnapshot) {
-        switch snapshot.status {
+    func update(total: ProcessMetricsSnapshot, pane: ProcessMetricsUsage?) {
+        let description: String
+        switch total.status {
         case .paused:
             setText("CPU paused", "MEM paused")
+            description = "Resource sampling paused."
         case .sampling:
-            setText(snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —", snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM …")
-        case .available:
-            setText(snapshot.cpuPercent.map(Self.cpuText) ?? "CPU —", snapshot.physicalFootprintBytes.map(Self.memoryText) ?? "MEM —")
+            setText("CPU … (…)", "MEM … (…)")
+            description = "Sampling local process usage."
         case .unavailable:
             setText("CPU n/a", "MEM n/a")
+            description = "Local process usage unavailable."
+        case .available:
+            let paneCPU = pane?.cpuPercent.map(Self.cpuText) ?? "—"
+            let totalCPU = total.cpuPercent.map(Self.cpuText) ?? "—"
+            let paneMemory = pane.map { Self.memoryText($0.physicalFootprintBytes) } ?? "—"
+            let totalMemory = total.physicalFootprintBytes.map(Self.memoryText) ?? "—"
+            setText("CPU \(paneCPU) (\(totalCPU))", "MEM \(paneMemory) (\(totalMemory)) MiB")
+            description = "Focused pane: CPU \(paneCPU), memory \(paneMemory) MiB. Lean Term total: CPU \(totalCPU), memory \(totalMemory) MiB."
         }
 
-        cpuGraph.values = snapshot.cpuHistory.map { value in
-            value.map { $0 / snapshot.cpuScalePercent }
+        cpuGraph.values = total.cpuHistory.map { value in
+            value.map { $0 / total.cpuScalePercent }
         }
-        memoryGraph.values = snapshot.memoryHistory.map { value in
-            value.map { Double($0) / Double(snapshot.memoryScaleBytes) }
+        memoryGraph.values = total.memoryHistory.map { value in
+            value.map { Double($0) / Double(total.memoryScaleBytes) }
         }
 
-        let message = accessibilityDescription(for: snapshot)
+        let details = "The first value covers the pane’s local shell and its child processes. The total includes Lean Term and its local child processes across all sessions. CPU is percent of one core. Memory is the sum of process footprints. Short-lived or unreadable processes can be missed. Remote host usage is separate."
+        let cpuScale = total.cpuScalePercent.formatted(.number.precision(.fractionLength(0)))
+        let memoryScale = (total.memoryScaleBytes / (1024 * 1024)).formatted()
+        let scales = "Sparklines track totals. CPU scale: 0–\(cpuScale)%. Memory scale: 0–\(memoryScale) MiB."
+        let message = "\(description) \(details) \(scales)"
         setAccessibilityLabel(message)
         setAccessibilityValue(message)
         toolTip = message
@@ -94,35 +125,14 @@ final class ResourceStatusView: NSView {
         memoryGraph.accentColor = color
     }
 
-    private func accessibilityDescription(for snapshot: ProcessMetricsSnapshot) -> String {
-        let cpuScale = String(format: "%.0f%%", locale: Locale(identifier: "en_US_POSIX"), snapshot.cpuScalePercent)
-        let memoryScaleMiB = snapshot.memoryScaleBytes / (1024 * 1024)
-        let scales = "Sparkline scales: CPU 0–\(cpuScale) of one core; memory 0–\(memoryScaleMiB) MiB physical footprint."
-        let description: String
-        switch snapshot.status {
-        case .paused:
-            description = "Process resource sampling paused. CPU is percent of one core. Memory is this app’s physical footprint in MiB. Child processes and helpers are excluded."
-        case .sampling:
-            description = "Sampling this app’s process resources. CPU is percent of one core. Memory is physical footprint in MiB. Child processes and helpers are excluded."
-        case .unavailable:
-            description = "Process resource readings unavailable. CPU is percent of one core. Memory is physical footprint in MiB. Child processes and helpers are excluded."
-        case .available:
-            let cpu = snapshot.cpuPercent.map { "\(Self.cpuText($0)) of one core" } ?? "waiting for a second CPU reading"
-            let memory = snapshot.physicalFootprintBytes.map { "\(Self.memoryText($0)) physical footprint" } ?? "unavailable"
-            description = "Lean Term only: \(cpu); \(memory). Child processes and helpers are excluded."
-        }
-        return "\(description) \(scales)"
-    }
-
     private static func cpuText(_ percent: Double) -> String {
-        if percent < 0.1 { return "CPU <0.1%" }
-        return "CPU \(String(format: percent < 10 ? "%.1f%%" : "%.0f%%", locale: Locale(identifier: "en_US_POSIX"), percent))"
+        if percent < 0.1 { return "<0.1%" }
+        return percent.formatted(.number.precision(.fractionLength(percent < 10 ? 1 : 0))) + "%"
     }
 
     private static func memoryText(_ bytes: UInt64) -> String {
         let mebibytes = Double(bytes) / Double(1024 * 1024)
-        let format = mebibytes < 1000 ? "%.1f" : "%.0f"
-        return "MEM \(String(format: format, locale: Locale(identifier: "en_US_POSIX"), mebibytes)) MiB"
+        return mebibytes.formatted(.number.precision(.fractionLength(mebibytes < 1000 ? 1 : 0)))
     }
 }
 

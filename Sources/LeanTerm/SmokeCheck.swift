@@ -55,6 +55,9 @@ final class SmokeCheck {
             do {
                 if requestedPolicy == "quit-cancel" {
                     try await runQuitCancellation()
+                } else if requestedPolicy == "resource-footer" {
+                    try await runResourceFooter()
+                    finish(passed: true)
                 } else if hasPolicyArgument {
                     guard let requestedPolicy, let policy = ExitPolicy(rawValue: requestedPolicy) else {
                         throw Failure(message: "Invalid --smoke-policy value: \(requestedPolicy ?? "missing")")
@@ -138,7 +141,7 @@ final class SmokeCheck {
         try expect(true, "Shell remains usable after local clear")
         try await wait { app.metricsMonitor.snapshot.cpuPercent != nil }
         try expect(app.metricsMonitor.snapshot.physicalFootprintBytes != nil,
-                   "Visible status bar samples this app's CPU and physical footprint")
+                   "Visible status bar samples total CPU and physical footprint")
         var disabled = app.preferences; disabled.showResourceUsage = false; app.updatePreferences(disabled)
         try expect(app.metricsMonitor.snapshot.status == .paused && first.resourceStatus.isHidden,
                    "Disabling resource graphs stops the shared sampler")
@@ -148,9 +151,10 @@ final class SmokeCheck {
         try expect(first.terminationCount == 1, "Shell exit callback delivered once after reap")
         first.window?.setContentSize(NSSize(width: 480, height: 320))
         first.window?.contentView?.layoutSubtreeIfNeeded()
-        try expect(first.resourceStatus.frame.width == 228 && first.resourceStatus.frame.minX >= 0 &&
+        try expect(!first.resourceStatus.showsSparklines && first.resourceStatus.frame.width == first.resourceStatus.intrinsicContentSize.width &&
+                   first.resourceStatus.frame.minX >= 0 &&
                    first.resourceStatus.frame.maxX <= (first.resourceStatus.superview?.bounds.width ?? 0) + 0.1,
-                   "Compact status graphs fit a minimum-width ended session")
+                   "Resource labels fit a minimum-width ended session")
         first.window?.close()
 
         // Keep one live anchor so auto-close can be checked without terminating the smoke host.
@@ -244,6 +248,50 @@ final class SmokeCheck {
         try await wait { app.sessions.count == 4 }
         try expect(app.workspaceSnapshot() == snapshot, "Restored native groups retain names, folders, order and selection")
         for session in Array(app.sessions.values) { session.beginShutdown() }
+        try await wait { app.sessions.isEmpty }
+    }
+
+    private func runResourceFooter() async throws {
+        guard let app, let session = app.newTerminal(smoke: true), let window = session.window,
+              let content = window.contentView else { throw Failure(message: "No native session") }
+        window.setContentSize(NSSize(width: 780, height: 480))
+        let metrics = app.metricsMonitor
+        let idlePane = session.focusedPane
+        try await wait { metrics.snapshot.status == .available || metrics.snapshot.status == .unavailable }
+        try expect(metrics.snapshot.status == .available, "Local process sampler can read the process tree")
+        try await wait { metrics.paneUsage[idlePane.id]?.cpuPercent != nil }
+
+        session.split(.horizontal)
+        let busyPane = session.focusedPane
+        try expect(busyPane !== idlePane, "Split focuses the new pane")
+        try await wait { metrics.paneUsage[busyPane.id]?.cpuPercent != nil }
+        busyPane.terminal.send(txt: "\u{15}/bin/zsh -fc 'while (( SECONDS < 5 )); do :; done'\r")
+        try await wait {
+            let usage = metrics.paneUsage
+            return (usage[busyPane.id]?.cpuPercent ?? 0) > 35 && (usage[idlePane.id]?.cpuPercent ?? 100) < 35
+        }
+        let busy = metrics.paneUsage[busyPane.id]
+        let idle = metrics.paneUsage[idlePane.id]
+        try expect((metrics.snapshot.cpuPercent ?? 0) >= (busy?.cpuPercent ?? 0) &&
+                   (metrics.snapshot.physicalFootprintBytes ?? 0) > (busy?.physicalFootprintBytes ?? 0) + (idle?.physicalFootprintBytes ?? 0),
+                   "Focused pane includes the local child process and total includes both panes and the app")
+
+        let busyDescription = session.resourceStatus.toolTip
+        window.makeFirstResponder(idlePane.terminal)
+        try expect(session.focusedPane === idlePane && session.resourceStatus.toolTip != busyDescription,
+                   "Footer switches to the newly focused pane immediately")
+        content.layoutSubtreeIfNeeded()
+        let scrollback = session.scrollbackStatus.convert(session.scrollbackStatus.bounds, to: content)
+        let resources = session.resourceStatus.convert(session.resourceStatus.bounds, to: content)
+        try expect(!session.scrollbackStatus.isHidden && scrollback.maxX < resources.minX,
+                   "Scrollback is visible to the left of the resource metrics")
+        window.setContentSize(NSSize(width: 480, height: 320))
+        content.layoutSubtreeIfNeeded()
+        let compact = session.resourceStatus.convert(session.resourceStatus.bounds, to: content)
+        try expect(!session.resourceStatus.showsSparklines && compact.width == session.resourceStatus.intrinsicContentSize.width &&
+                   compact.minX >= 0 && compact.maxX <= content.bounds.width,
+                   "Resource labels fit a minimum-width terminal window")
+        session.beginShutdown()
         try await wait { app.sessions.isEmpty }
     }
 

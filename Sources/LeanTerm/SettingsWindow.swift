@@ -141,7 +141,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let sessions = Self.vertical([closeOnExit, quitAfterLast, restore,
             Self.note("Reopens fresh shells in saved folders, including tab names. Running commands are not restored.")], spacing: 7)
         let monitoring = Self.vertical([resources,
-            Self.note("Lean Term only, excluding child processes. Sampling pauses when terminal windows are hidden.")], spacing: 7)
+            Self.note("Shows local usage for the focused pane and the total for Lean Term and its sessions. Sampling pauses when terminal windows are hidden.")], spacing: 7)
         let activity = Self.vertical([activityScanner, tabActivity, sessionMarks,
             Self.note("Shown while a command runs or a session is remote or root. Animation pauses for hidden windows, Reduce Motion and Low Power Mode.")], spacing: 7)
         let statusMarks = Self.vertical([commandStatus,

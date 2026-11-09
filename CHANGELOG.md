@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The status bar shows CPU and memory for the focused pane alongside Lean Term’s total local usage. Scrollback appears before these metrics.
+
 ## 0.7.0 — Scrollback usage and SSH keepalives
 
 - The status bar shows the focused pane’s scrollback usage, line limit and percentage.

@@ -82,11 +82,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = true
-        metricsMonitor.onChange = { [weak self] snapshot in
+        metricsMonitor.onChange = { [weak self] in
             guard let self, self.preferences.showResourceUsage else { return }
             for session in self.sessions.values where session.isResourceDisplayVisible {
-                session.resourceStatus.update(snapshot)
+                session.updateResourceUsage()
             }
+        }
+        metricsMonitor.shellPIDs = { [weak self] in
+            guard let self else { return [:] }
+            var shells: [pid_t: UUID] = [:]
+            for session in self.sessions.values {
+                for pane in session.panes {
+                    if let pid = pane.runningShellPID { shells[pid] = pane.id }
+                }
+            }
+            return shells
         }
         activityMonitor.panes = { [weak self] in self?.sessions.values.flatMap(\.panes) ?? [] }
         notifier.openSession = { [weak self] id in
@@ -554,7 +564,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         metricsMonitor.setRunning(preferences.showResourceUsage && !terminationPending && sessions.values.contains { $0.isResourceDisplayVisible },
                                   interval: NSApp.isActive ? 1 : 5)
         for session in sessions.values where preferences.showResourceUsage && session.isResourceDisplayVisible {
-            session.resourceStatus.update(metricsMonitor.snapshot)
+            session.updateResourceUsage()
         }
     }
     @objc private func largerFont(_ sender: Any?) { changeFont(by: 1) }

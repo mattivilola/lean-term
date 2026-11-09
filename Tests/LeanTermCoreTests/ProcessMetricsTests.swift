@@ -37,28 +37,50 @@ import Testing
 @Test func modelUsesFirstReadingAsBaselineAndResetsAcrossPauseAndFailure() throws {
     var model = ProcessMetricsModel()
     model.setRunning(true)
-    model.record(.init(uptimeTicks: 1_000, cpuTimeTicks: 500, physicalFootprintBytes: 80_000_000))
+    model.record([1: .init(uptimeTicks: 1_000, cpuTimeTicks: 500, physicalFootprintBytes: 80_000_000)])
     #expect(model.snapshot.status == .available)
     #expect(model.snapshot.cpuPercent == nil)
     #expect(model.snapshot.physicalFootprintBytes == 80_000_000)
 
-    model.record(.init(uptimeTicks: 2_000, cpuTimeTicks: 1_000, physicalFootprintBytes: 90_000_000))
+    model.record([1: .init(uptimeTicks: 2_000, cpuTimeTicks: 1_000, physicalFootprintBytes: 90_000_000)])
     #expect(model.snapshot.cpuPercent == 50)
 
     model.setRunning(false)
     #expect(model.snapshot.status == .paused)
     #expect(model.snapshot.cpuPercent == nil)
     model.setRunning(true)
-    model.record(.init(uptimeTicks: 100_000, cpuTimeTicks: 90_000, physicalFootprintBytes: 100_000_000))
+    model.record([1: .init(uptimeTicks: 100_000, cpuTimeTicks: 90_000, physicalFootprintBytes: 100_000_000)])
     #expect(model.snapshot.cpuPercent == nil)
 
     model.record(nil)
     #expect(model.snapshot.status == .unavailable)
     #expect(model.snapshot.cpuPercent == nil && model.snapshot.physicalFootprintBytes == nil)
-    model.record(.init(uptimeTicks: 102_000, cpuTimeTicks: 92_000, physicalFootprintBytes: 120_000_000))
+    model.record([1: .init(uptimeTicks: 102_000, cpuTimeTicks: 92_000, physicalFootprintBytes: 120_000_000)])
     #expect(model.snapshot.cpuPercent == nil)
-    model.record(.init(uptimeTicks: 103_000, cpuTimeTicks: 92_500, physicalFootprintBytes: 121_000_000))
+    model.record([1: .init(uptimeTicks: 103_000, cpuTimeTicks: 92_500, physicalFootprintBytes: 121_000_000)])
     #expect(try #require(model.snapshot.cpuPercent) == 50)
+}
+
+@Test func usageSumsLiveProcessesWithoutReusingARecycledPIDsCPUCounter() throws {
+    var model = ProcessMetricsModel()
+    model.setRunning(true)
+    model.record([
+        1: .init(startedAtTicks: 1, uptimeTicks: 100, cpuTimeTicks: 20, physicalFootprintBytes: 100),
+        2: .init(startedAtTicks: 10, uptimeTicks: 100, cpuTimeTicks: 10, physicalFootprintBytes: 20),
+        3: .init(startedAtTicks: 20, uptimeTicks: 100, cpuTimeTicks: 5, physicalFootprintBytes: 30),
+    ])
+    let pane: [Int32: ProcessMetricsReading] = [
+        2: .init(startedAtTicks: 10, uptimeTicks: 200, cpuTimeTicks: 60, physicalFootprintBytes: 20),
+        3: .init(startedAtTicks: 150, uptimeTicks: 200, cpuTimeTicks: 25, physicalFootprintBytes: 35),
+    ]
+    let usage = try #require(model.usage(for: pane))
+    #expect(usage.cpuPercent == 50)
+    #expect(usage.physicalFootprintBytes == 55)
+    var total = pane
+    total[1] = .init(startedAtTicks: 1, uptimeTicks: 200, cpuTimeTicks: 30, physicalFootprintBytes: 100)
+    model.record(total)
+    #expect(model.snapshot.cpuPercent == 60)
+    #expect(model.snapshot.physicalFootprintBytes == 155)
 }
 
 @Test func historyStaysBoundedAndScalesExpandWithoutClamping() throws {
@@ -67,9 +89,9 @@ import Testing
     let above128MiB = ProcessMetricsSnapshot.minimumMemoryScaleBytes + 1
     for index in 0..<75 {
         let uptime = UInt64(index + 1) * 100
-        model.record(.init(uptimeTicks: uptime,
-                           cpuTimeTicks: UInt64(index) * 150,
-                           physicalFootprintBytes: index == 74 ? above128MiB : 64 * 1024 * 1024))
+        model.record([1: .init(uptimeTicks: uptime,
+                               cpuTimeTicks: UInt64(index) * 150,
+                               physicalFootprintBytes: index == 74 ? above128MiB : 64 * 1024 * 1024)])
     }
 
     let snapshot = model.snapshot

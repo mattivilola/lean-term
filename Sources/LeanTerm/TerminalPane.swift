@@ -619,6 +619,12 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         host?.paneDidChangeLocation(self)
     }
 
+    var runningShellPID: pid_t? {
+        guard live, let process = terminal.process, process.running else { return nil }
+        let pid = process.shellPid
+        return pid > 0 ? pid : nil
+    }
+
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         // The window may be released by the close below; keep it for the final callback.
         let host = host

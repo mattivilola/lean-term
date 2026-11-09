@@ -9,15 +9,22 @@ public enum ProcessMetricsStatus: Equatable, Sendable {
 
 /// One reading for this process. CPU and elapsed times use the same Mach tick unit.
 public struct ProcessMetricsReading: Equatable, Sendable {
+    public let startedAtTicks: UInt64
     public let uptimeTicks: UInt64
     public let cpuTimeTicks: UInt64
     public let physicalFootprintBytes: UInt64
 
-    public init(uptimeTicks: UInt64, cpuTimeTicks: UInt64, physicalFootprintBytes: UInt64) {
+    public init(startedAtTicks: UInt64 = 0, uptimeTicks: UInt64, cpuTimeTicks: UInt64, physicalFootprintBytes: UInt64) {
+        self.startedAtTicks = startedAtTicks
         self.uptimeTicks = uptimeTicks
         self.cpuTimeTicks = cpuTimeTicks
         self.physicalFootprintBytes = physicalFootprintBytes
     }
+}
+
+public struct ProcessMetricsUsage: Equatable, Sendable {
+    public let cpuPercent: Double?
+    public let physicalFootprintBytes: UInt64
 }
 
 public struct ProcessMetricsSnapshot: Equatable, Sendable {
@@ -53,7 +60,7 @@ public struct ProcessMetricsSnapshot: Equatable, Sendable {
 /// Pure state and scale calculations shared by the process monitor and focused tests.
 public struct ProcessMetricsModel: Sendable {
     public private(set) var snapshot = ProcessMetricsSnapshot()
-    private var previousReading: ProcessMetricsReading?
+    private var previousReadings: [Int32: ProcessMetricsReading] = [:]
 
     public init() {}
 
@@ -63,7 +70,7 @@ public struct ProcessMetricsModel: Sendable {
             snapshot = Self.makeSnapshot(status: .sampling, cpu: nil, memory: nil,
                                          cpuHistory: snapshot.cpuHistory, memoryHistory: snapshot.memoryHistory)
         case (.sampling, false), (.available, false), (.unavailable, false):
-            previousReading = nil
+            previousReadings.removeAll()
             snapshot = Self.makeSnapshot(status: .paused, cpu: nil, memory: nil,
                                          cpuHistory: snapshot.cpuHistory + [nil],
                                          memoryHistory: snapshot.memoryHistory + [nil])
@@ -72,30 +79,47 @@ public struct ProcessMetricsModel: Sendable {
         }
     }
 
-    public mutating func record(_ reading: ProcessMetricsReading?) {
+    /// Sums one group against the last total sample, comparing CPU counters by process identity.
+    public func usage(for readings: [Int32: ProcessMetricsReading]) -> ProcessMetricsUsage? {
+        guard !readings.isEmpty else { return nil }
+        var cpu: Double?
+        var memory: UInt64 = 0
+        for (pid, reading) in readings {
+            let (sum, overflow) = memory.addingReportingOverflow(reading.physicalFootprintBytes)
+            memory = overflow ? UInt64.max : sum
+            if let previous = previousReadings[pid], let percent = Self.cpuPercent(from: previous, to: reading) {
+                cpu = (cpu ?? 0) + percent
+            }
+        }
+        return ProcessMetricsUsage(cpuPercent: cpu, physicalFootprintBytes: memory)
+    }
+
+    public mutating func record(_ readings: [Int32: ProcessMetricsReading]?) {
         guard snapshot.status != .paused else { return }
 
-        guard let reading else {
-            previousReading = nil
+        guard let readings, let usage = usage(for: readings) else {
+            previousReadings.removeAll()
             snapshot = Self.makeSnapshot(status: .unavailable, cpu: nil, memory: nil,
                                          cpuHistory: snapshot.cpuHistory + [nil],
                                          memoryHistory: snapshot.memoryHistory + [nil])
             return
         }
 
-        let cpu = previousReading.flatMap { Self.cpuPercent(from: $0, to: reading) }
-        previousReading = reading
+        previousReadings = readings
+        let cpu = usage.cpuPercent
+        let memory = usage.physicalFootprintBytes
         snapshot = Self.makeSnapshot(status: .available, cpu: cpu,
-                                     memory: reading.physicalFootprintBytes,
+                                     memory: memory,
                                      cpuHistory: snapshot.cpuHistory + [cpu],
-                                     memoryHistory: snapshot.memoryHistory + [reading.physicalFootprintBytes])
+                                     memoryHistory: snapshot.memoryHistory + [memory])
     }
 
     /// CPU percent relative to one logical core. Mach timebase factors cancel because both
     /// process CPU time and elapsed time are expressed in Mach absolute-time ticks.
     public static func cpuPercent(from previous: ProcessMetricsReading,
                                   to current: ProcessMetricsReading) -> Double? {
-        guard current.uptimeTicks > previous.uptimeTicks,
+        guard current.startedAtTicks == previous.startedAtTicks,
+              current.uptimeTicks > previous.uptimeTicks,
               current.cpuTimeTicks >= previous.cpuTimeTicks else { return nil }
 
         let elapsedTicks = current.uptimeTicks - previous.uptimeTicks
