@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — Resource usage and terminal controls
 
 - The status bar shows CPU and memory for the focused pane alongside Lean Term’s total local usage. Scrollback appears before these metrics.
 - Jump to live output from the status bar while browsing history. The status bar also shows the last command’s exit status and duration when shell integration provides them.
