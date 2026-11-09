@@ -52,6 +52,7 @@ protocol TerminalPaneHost: AnyObject {
     func pane(_ pane: TerminalPane, didSetStatus text: String)
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool)
     func pane(_ pane: TerminalPane, didChangeDimensions text: String)
+    func paneDidChangeScrollback(_ pane: TerminalPane)
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int)
     /// The user flipped the find bar's "Aa" or ".*" toggle.
     func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool)
@@ -215,8 +216,10 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             terminal.selectCommandOutput(promptRow: promptRow)
         }
         terminal.onScrolled = { [weak self] in
-            self?.scheduleStatusRefresh()
-            self?.find.updateHighlights()
+            guard let self else { return }
+            host?.paneDidChangeScrollback(self)
+            scheduleStatusRefresh()
+            find.updateHighlights()
         }
         view.addSubview(statusMargin)
         find.bar.setOptions(matchCase: preferences.findMatchCase, regex: preferences.findUseRegex)

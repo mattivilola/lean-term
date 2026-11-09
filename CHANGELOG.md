@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The status bar shows the focused pane’s scrollback usage, line limit and percentage.
+
 ## 0.6.1 — Open files in the installed Lean VS Code
 
 - ⌘-clicking file paths prefers the installed Lean VS Code, even when a development copy is running.

@@ -249,8 +249,7 @@ Settings › Activity › Show command status in the margin; the notification wo
 
 SwiftTerm is pinned to `309adcc28bdf0e01f6403d04616323b379fb5635`. Its public
 `terminate()` supports TERM only, while its private reaper already protects signals
-against PID reuse. `script/prepare_dependency.py` makes three small lifecycle changes (plus the prompt helpers
-and exit status storage described above):
+against PID reuse. `script/prepare_dependency.py` makes three small lifecycle changes:
 
 1. Expose `terminate(signal: Int32 = SIGTERM)`.
 2. Permit a later signal while the session is already terminating.
@@ -259,11 +258,16 @@ and exit status storage described above):
 The OSC 133 extension touches three more files: `Terminal.swift` (the `D` handler stores the status),
 `BufferLine.swift` (the optional `semanticExitCode`, copied, moved with full-width copies and cleared next
 to the continuation epoch) and `MacTerminalView.swift` (`hasSemanticPrompts`, `semanticViewport`,
-`semanticCommandSpans(rows:)`, `semanticOutputRows(promptRow:lastRow:)`, `selectBufferRows(_:)`). Each
-patch is an exact-anchor replacement checked against the reviewed original and patched SHA-256; a file
+`semanticCommandSpans(rows:)`, `semanticOutputRows(promptRow:lastRow:)`, `selectBufferRows(_:)`).
+
+The footer reads the normal buffer's retained history and capacity together under the terminal lock, even
+while an alternate screen is active. Clearing history with ED 3 or a full reset now posts the same
+coalesced scroll notification as ordinary output. The footer also refreshes on resize and pane focus changes.
+
+Each patch is an exact-anchor replacement checked against the reviewed original and patched SHA-256; a file
 holding an earlier reviewed patched version is restored from the checkout's git `HEAD` and patched again.
 
-The renderer, parser and I/O pipeline are unchanged. The script verifies the
+The renderer and I/O pipeline are unchanged. The script verifies the
 revision and exact original or patched source SHA-256, refuses any other contents,
 and changes only the task-owned SwiftPM checkout. Synchronous main-actor startup
 finishes before the app requests shutdown; concurrent startup/shutdown would need

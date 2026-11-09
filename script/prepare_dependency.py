@@ -61,6 +61,13 @@ PROMPT_API = '''
         }
     }
 
+    /// Retained history above the live screen, even while the alternate screen is active.
+    public var scrollbackUsage: (used: Int, capacity: Int) {
+        withTerminal { terminal in
+            (terminal.normalBuffer.yBase, terminal.options.scrollback)
+        }
+    }
+
     /// The commands that intersect the buffer rows `rows`, in order. The command enclosing the first row
     /// is found by scanning up to `semanticScanLimit` rows upward. A command ends on the row before the
     /// next prompt (or at the cursor while none follows) and carries the status that its `D` reported.
@@ -241,6 +248,16 @@ def bufferline(text):
 ''', 'Exit code range move')
 
 def terminal(text):
+    text = once(text, '''                buffer.yDisp = max (buffer.yDisp - scrollBackSize, 0)
+''', '''                buffer.yDisp = max (buffer.yDisp - scrollBackSize, 0)
+                recordScrollNotification()
+''', 'Erase scrollback notification')
+    text = once(text, '''        // some unrelated layout pass happens to correct it.
+        tdel?.bufferActivated (source: self)
+''', '''        // some unrelated layout pass happens to correct it.
+        tdel?.bufferActivated (source: self)
+        recordScrollNotification()
+''', 'Reset scrollback notification')
     text = once(text, '''        case "C", "D":
             buffer.semanticContent = .output
 ''', '''        case "C", "D":
@@ -268,13 +285,13 @@ patches = [
      '71cf47429151843315b8875cd6ac75ac5006fe2fdcf925fdaf6861435804be52', ()),
     ('Sources/SwiftTerm/Mac/MacTerminalView.swift', prompts,
      '1c0a7c55bc5bd8bada43ebb1645c769f0495a0eed6ad8cef880d4164afb0fd92',
-     '1cb4e9f5d74ba92e59d842f9dc3fee3e8a0802582c87acdca6e0b572e7cc5082', ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4', '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', '5eda0fc3e989240ed57934b2f294a607be675b08390f195926f2e813dccc533a')),
+     '7c52045932ea1390312c675a2b8124eff3d54708ea085f15e76effa15c5f3f17', ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4', '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', '5eda0fc3e989240ed57934b2f294a607be675b08390f195926f2e813dccc533a', '1cb4e9f5d74ba92e59d842f9dc3fee3e8a0802582c87acdca6e0b572e7cc5082')),
     ('Sources/SwiftTerm/BufferLine.swift', bufferline,
      '206860afb27a442f7fac621d6961ad92e433686e8334b09ee742680104639d2c',
      'e3c63bec7d4c29112a48e9ff76aa366e485c5be830c9b7ee3b09783b6ea95b76', ()),
     ('Sources/SwiftTerm/Terminal.swift', terminal,
      '768c45171631c780715ba31861f503f8320720e6d5d4332295daeeb65d73d233',
-     '20ba488640f4618e6d34a04fa6c658c4999146e216dd002cfb8e6b18e32bbcb6', ()),
+     '0d8fc67266e6c89b1cbea10b45d050fd01699a7e46383b072805f03983ffac11', ('20ba488640f4618e6d34a04fa6c658c4999146e216dd002cfb8e6b18e32bbcb6',)),
 ]
 
 for relative, transform, original, patched, superseded in patches:

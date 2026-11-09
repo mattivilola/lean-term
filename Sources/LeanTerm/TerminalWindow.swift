@@ -32,6 +32,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     private var activeCopyNotice: String?
     private var copyNotice: Task<Void, Never>?
     private let dimensions = NSTextField(labelWithString: "")
+    let scrollbackStatus = NSTextField(labelWithString: "")
+    private var lastScrollbackUsage: (used: Int, capacity: Int)?
     let resourceStatus = ResourceStatusView()
     private let tabMark = TabActivityView()
     var hasUnseenActivity: Bool { panes.contains(where: \.hasUnseenActivity) }
@@ -88,14 +90,19 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         window.contentView = surface
         paneArea.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(paneArea)
-        let footer = NSStackView(views: [status, NSView(), restart, resourceStatus, dimensions])
+        let footer = NSStackView(views: [status, NSView(), restart, resourceStatus, scrollbackStatus, dimensions])
         footer.orientation = .horizontal; footer.spacing = 12
+        footer.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        footer.setVisibilityPriority(.detachOnlyIfNecessary, for: scrollbackStatus)
         footer.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(footer)
         window.tab.accessoryView = tabMark
         status.font = .systemFont(ofSize: 11)
         status.lineBreakMode = .byTruncatingMiddle
         status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        scrollbackStatus.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        scrollbackStatus.lineBreakMode = .byTruncatingTail
+        scrollbackStatus.setContentHuggingPriority(.required, for: .horizontal)
         dimensions.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
         dimensions.setContentHuggingPriority(.required, for: .horizontal)
         restart.bezelStyle = .inline
@@ -191,6 +198,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
 
     private func visibilityChanged() {
         app?.refreshResourceMonitoring()
+        if isResourceDisplayVisible { updateScrollbackStatus() }
         for pane in panes { pane.renderScanner() }
         renderActivity()
     }
@@ -232,6 +240,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
         for pane in panes { pane.apply(value) }
+        updateScrollbackStatus()
         updateSubtitle()
         applyTheme()
         updateDimming()
@@ -242,6 +251,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         window?.backgroundColor = theme.background
         surface.layer?.backgroundColor = theme.background.cgColor
         status.textColor = .secondaryLabelColor
+        scrollbackStatus.textColor = .secondaryLabelColor
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
         resourceStatus.applyAccent(theme.accent)
@@ -508,6 +518,7 @@ extension TerminalWindow {
         updateSubtitle()
         status.stringValue = pane.statusText
         dimensions.stringValue = pane.dimensionsText
+        updateScrollbackStatus()
         restart.isHidden = pane.restartHidden
         renderActivity()
         updateDimming()
@@ -516,6 +527,19 @@ extension TerminalWindow {
     private func updateDimming() {
         let dim = preferences.dimInactivePanes && panes.count > 1 && !isZoomed
         for pane in panes { pane.setDimmed(dim && pane !== focusedPane) }
+    }
+
+    private func updateScrollbackStatus() {
+        let usage = terminal.scrollbackUsage
+        if let lastScrollbackUsage, lastScrollbackUsage == usage { return }
+        lastScrollbackUsage = usage
+        let percent = usage.capacity > 0 ? usage.used * 100 / usage.capacity : 0
+        let capacity = usage.capacity >= 1_000 && usage.capacity.isMultiple(of: 1_000)
+            ? "\(usage.capacity / 1_000)k" : usage.capacity.formatted()
+        scrollbackStatus.stringValue = "Scrollback \(usage.used.formatted()) / \(capacity) (\(percent)%)"
+        let detail = "This pane retains \(usage.used.formatted()) of \(usage.capacity.formatted()) scrollback lines."
+        scrollbackStatus.toolTip = detail
+        scrollbackStatus.setAccessibilityHelp(detail)
     }
 
     // MARK: View tree
@@ -678,7 +702,12 @@ extension TerminalWindow: TerminalPaneHost {
 
     func pane(_ pane: TerminalPane, didSetStatus text: String) { if pane === focusedPane { status.stringValue = text } }
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool) { if pane === focusedPane { restart.isHidden = hidden } }
-    func pane(_ pane: TerminalPane, didChangeDimensions text: String) { if pane === focusedPane { dimensions.stringValue = text } }
+    func pane(_ pane: TerminalPane, didChangeDimensions text: String) {
+        guard pane === focusedPane else { return }
+        dimensions.stringValue = text
+        updateScrollbackStatus()
+    }
+    func paneDidChangeScrollback(_ pane: TerminalPane) { if pane === focusedPane { updateScrollbackStatus() } }
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int) { showCopyNotice(removed: removed) }
     func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool) {
         guard var value = app?.preferences else { return }

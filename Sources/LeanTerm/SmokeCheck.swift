@@ -107,14 +107,32 @@ final class SmokeCheck {
         try expect(first.terminal.visibleRowsText(0..<first.terminal.terminalDimensions.rows).allSatisfy {
             $0.trimmingCharacters(in: .whitespaces).isEmpty
         } && !first.terminal.selectionActive, "Cmd-K clears the screen, history, search results and selection")
+        try expect(first.scrollbackStatus.stringValue == "Scrollback 0 / 10k (0%)",
+                   "Cmd-K resets the footer’s scrollback count")
+
+        first.terminal.feed(text: String(repeating: "test row\r\n", count: 1_200))
+        try await wait { !first.scrollbackStatus.stringValue.hasSuffix("(0%)") }
+        var history = app.preferences
+        history.scrollbackLines = 1_000
+        app.updatePreferences(history)
+        let full = "Scrollback \(1_000.formatted()) / 1k (100%)"
+        try expect(first.scrollbackStatus.stringValue == full, "Reducing the history limit updates the footer and trims the buffer")
         first.terminal.feed(text: "\u{1B}[?1049h\u{1B}[?2004hALT_CLEAR_TARGET")
         try await wait { first.terminal.findNext("ALT_CLEAR_TARGET") }
+        try expect(first.scrollbackStatus.stringValue == full, "The footer still counts retained history on the alternate screen")
         first.focusedPane.clearScreenAndScrollback()
         try await wait { !first.terminal.findNext("ALT_CLEAR_TARGET") }
         let modes = first.terminal.terminalInputStateSnapshot()
         try expect(modes?.isAlternateBuffer == true && modes?.bracketedPasteMode == true,
                    "Clearing an alternate screen preserves terminal input modes")
+        try expect(first.scrollbackStatus.stringValue == "Scrollback 0 / 1k (0%)",
+                   "Clearing scrollback from the alternate screen resets the footer")
         first.terminal.feed(text: "\u{1B}[?1049l")
+        first.terminal.feed(text: String(repeating: "test row\r\n", count: 1_200))
+        try await wait { first.scrollbackStatus.stringValue == full }
+        first.terminal.send(txt: "printf '\\033[3J'\r")
+        try await wait { first.scrollbackStatus.stringValue.hasSuffix("(0%)") }
+        try expect(true, "Shell-driven scrollback erase refreshes the footer")
         first.terminal.send(txt: "printf 'LT_AFTER_CLEAR_%s\\n' 'OK'\r")
         try await wait { first.terminal.findNext("LT_AFTER_CLEAR_OK") }
         try expect(true, "Shell remains usable after local clear")
