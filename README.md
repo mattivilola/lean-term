@@ -12,7 +12,7 @@ and a little less distraction. Free and open source.
 
 [Website](https://leanterm.com) · [Build](#build-and-run) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
-**0.6.1** · Apple silicon · macOS 26+.
+**0.7.0** · Apple silicon · macOS 26+.
 [Releases and downloads](https://github.com/mattivilola/lean-term/releases).
 You can also build from source without a signing account.
 
@@ -31,6 +31,7 @@ You can also build from source without a signing account.
 - Optional running-command scanner and busy/finished tab marks, with no cost while sessions are idle.
 - Remote, root and bell marks in tabs, optional host colour rules, and opt-in notifications
   with a Dock badge for activity you missed.
+- Optional SSH keepalive probes after 30 idle seconds, with a bolt icon on tabs that request them.
 - A branded About window and editable keyboard shortcuts with conflict checks.
 - Signed release builds include automatic updates through Sparkle.
 - Confirms closing live sessions and waits for owned shell cleanup on quit.
@@ -45,6 +46,19 @@ median typing response, 58.5 MiB idle GUI footprint and a 0.53 s warm window
 launch on the tested Mac. These local capture/window timings do not establish
 the fastest possible terminal; the report includes conditions and raw data.
 Rust was not benchmarked and remains an option if profiling justifies it.
+
+### SSH keepalive
+
+Turn on **Settings → Terminal → Keep SSH connections alive**, then open a new tab
+or pane and connect with `ssh`. This applies to macOS OpenSSH in zsh and to
+`ssh://` links opened in Lean Term. The bolt icon and its tooltip show when the
+client requested the 30-second interval. Existing connections need to reconnect.
+
+Lean Term supplies OpenSSH's `ServerAliveInterval` on the command line, which
+takes precedence over the interval in SSH config files. In zsh, existing `ssh`
+aliases, functions, custom binaries and explicit interval arguments take
+precedence over Lean Term's integration. Shared SSH connections use the existing
+master's interval.
 
 ## Build and run
 

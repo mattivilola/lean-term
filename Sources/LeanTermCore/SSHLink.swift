@@ -54,6 +54,11 @@ public struct SSHLink: Equatable, Sendable {
     }
 
     public var command: String {
-        "ssh" + (port.map { " -p \($0)" } ?? "") + " " + (user.map { $0 + "@" } ?? "") + host
+        command(keepAlive: false)
+    }
+
+    public func command(keepAlive: Bool) -> String {
+        let client = keepAlive ? "/usr/bin/ssh \(ForegroundSession.sshKeepAliveOption)" : "ssh"
+        return client + (port.map { " -p \($0)" } ?? "") + " " + (user.map { $0 + "@" } ?? "") + host
     }
 }

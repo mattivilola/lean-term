@@ -69,6 +69,9 @@ with (resources / 'Build.lock').open('a+b') as lock:
     except subprocess.CalledProcessError:
         info['LeanTermSourceRevision'] = 'unknown'
     if product == 'LeanTerm':
+        ssh_startup = resources / 'SSHKeepAlive'
+        ssh_startup.mkdir(exist_ok=True)
+        shutil.copy2(root / 'script/ssh-keepalive/.zshenv', ssh_startup / '.zshenv')
         # Alternate rank: Lean Term accepts these opens but never claims them; Settings offers an explicit opt-in.
         info['CFBundleDocumentTypes'] = [
             {'CFBundleTypeName': 'Folder', 'CFBundleTypeRole': 'Viewer', 'LSHandlerRank': 'Alternate',

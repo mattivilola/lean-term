@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — Scrollback usage and SSH keepalives
 
 - The status bar shows the focused pane’s scrollback usage, line limit and percentage.
+- Turn on **Keep SSH connections alive** in Settings › Terminal to request a probe after 30 idle seconds. It applies to macOS OpenSSH in new zsh panes and to SSH links opened in Lean Term. A bolt icon marks tabs where the client requests keepalives.
 
 ## 0.6.1 — Open files in the installed Lean VS Code
 

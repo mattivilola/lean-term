@@ -344,7 +344,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     openTerminal(in: url.deletingLastPathComponent(), command: ShellEscape.path(url.path) + "; exit")
                 }
             } else if url.scheme?.lowercased() == "ssh" {
-                if let link = SSHLink(url) { openTerminal(in: nil, command: link.command) }
+                if let link = SSHLink(url) {
+                    openTerminal(in: nil, command: link.command(keepAlive: preferences.sshKeepAlive))
+                }
                 else {
                     let alert = NSAlert()
                     alert.messageText = "That ssh link isn't valid"

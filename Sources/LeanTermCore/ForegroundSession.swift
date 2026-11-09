@@ -22,6 +22,13 @@ public enum ForegroundSession: Equatable, Sendable {
     case remote(tool: String, host: String?)
 
     public static let remoteTools: Set<String> = ["ssh", "autossh", "mosh-client", "et"]
+    public static let sshKeepAliveOption = "-oServerAliveInterval=30"
+
+    /// Lean Term adds this option before the destination. This describes the SSH invocation,
+    /// since a multiplexed session may reuse an existing transport with its own settings.
+    public static func requestsSSHKeepAlive(_ process: ForegroundProcess?) -> Bool {
+        process?.name == "ssh" && process?.arguments.dropFirst().first == sshKeepAliveOption
+    }
 
     public init(_ process: ForegroundProcess?) {
         guard let process else { self = .local; return }

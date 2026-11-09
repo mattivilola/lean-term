@@ -26,6 +26,19 @@ import Testing
     #expect(!locale.environment.contains { $0.hasPrefix("LANG=") })
 }
 
+@Test func sshKeepAliveStartupPreservesCustomZshDirectory() {
+    let startup = "/Lean Term.app/Contents/Resources/SSHKeepAlive"
+    let inherited = ["ZDOTDIR": "/custom zsh"]
+    let zsh = ShellLaunch(account: .init(name: "tester", home: "/tmp", shell: "/bin/zsh"),
+                          inherited: inherited, sshKeepAliveStartup: startup)
+    #expect(zsh.environment.contains("ZDOTDIR=\(startup)"))
+    #expect(zsh.environment.contains("LEANTERM_ORIGINAL_ZDOTDIR=/custom zsh"))
+    let bash = ShellLaunch(account: .init(name: "tester", home: "/tmp", shell: "/bin/bash"),
+                           inherited: inherited, sshKeepAliveStartup: startup)
+    #expect(bash.environment.contains("ZDOTDIR=/custom zsh"))
+    #expect(!bash.environment.contains { $0.hasPrefix("LEANTERM_ORIGINAL_ZDOTDIR=") })
+}
+
 @Test func preferencesRejectCorruptValuesAndRoundTrip() throws {
     let name = "LeanTermTests." + UUID().uuidString
     let defaults = try #require(UserDefaults(suiteName: name))
@@ -46,6 +59,7 @@ import Testing
     #expect(Preferences(defaults: defaults).scrollbackLines == 10_000)
     var value = Preferences()
     value.restoreSessions = true
+    value.sshKeepAlive = true
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.showCommandStatus = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
     value.findMatchCase = true; value.findUseRegex = true
@@ -183,6 +197,8 @@ import Testing
     #expect(command("ssh://me.x_y@host-1.example.com:2222/") == "ssh -p 2222 me.x_y@host-1.example.com")
     #expect(command("SSH://10.0.0.1:22") == "ssh -p 22 10.0.0.1")
     #expect(command("ssh://root@[fe80::1]:2200") == "ssh -p 2200 root@fe80::1")
+    let link = try #require(URL(string: "ssh://me@host:2222").flatMap(SSHLink.init))
+    #expect(link.command(keepAlive: true) == "/usr/bin/ssh -oServerAliveInterval=30 -p 2222 me@host")
     for bad in ["ssh://", "ssh://-oProxyCommand=x", "ssh://a;rm@host", "ssh://host:0", "ssh://host:65536", "ssh://host:22:22",
                 "ssh://user:pw@host", "ssh://host/path", "ssh://host?x=1", "ssh://ho%20st", "ssh://a@b@host", "ssh://[abc]", "https://host"] {
         #expect(command(bad) == nil, "\(bad)")

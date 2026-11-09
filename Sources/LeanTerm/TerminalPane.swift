@@ -100,6 +100,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private var foregroundGroup: pid_t = 0
     private var foregroundLeaderPendingExec = false
     private var session = ForegroundSession.local
+    private var sshKeepAliveRequested = false
     private var remoteLocation: (host: String, path: String)?
     /// The last non-empty title the shell set.
     private(set) var terminalTitle: String?
@@ -166,7 +167,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         self.preferences = preferences
         theme = TerminalTheme(palette: preferences.palette,
                               dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
-        launch = ShellLaunch(directory: directory)
+        launch = ShellLaunch(directory: directory,
+                             sshKeepAliveStartup: preferences.sshKeepAlive ? Self.sshKeepAliveStartup : nil)
         currentDirectory = launch.directory
         statusText = launch.usedFallback ? "Login shell unavailable · using zsh" : URL(fileURLWithPath: launch.executable).lastPathComponent
         let font = TerminalFont.make(name: preferences.fontName, size: preferences.fontSize)
@@ -265,6 +267,13 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         ])
     }
 
+    private static let sshKeepAliveStartup: String? = {
+        guard let directory = Bundle.main.resourceURL?.appendingPathComponent("SSHKeepAlive", isDirectory: true),
+              FileManager.default.isReadableFile(atPath: directory.appendingPathComponent(".zshenv").path)
+        else { return nil }
+        return directory.path
+    }()
+
     /// Register the pane with the app before a shell can synchronously exit.
     func start(smoke: Bool = false) {
         guard !didStart, state == .starting else { return }
@@ -357,11 +366,13 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         guard group != foregroundGroup || foregroundLeaderPendingExec else { return }
         foregroundGroup = group
         let previous = session
+        let previousKeepAlive = sshKeepAliveRequested
         let leader = group > 0 ? ForegroundProcessReader.read(groupLeader: group) : nil
         foregroundLeaderPendingExec = leader?.name == URL(fileURLWithPath: launch.executable).lastPathComponent
         session = ForegroundSession(leader)
+        sshKeepAliveRequested = ForegroundSession.requestsSSHKeepAlive(leader)
         if !session.isRemote { remoteLocation = nil }
-        if session != previous { host?.paneDidChangeLocation(self) }
+        if session != previous || sshKeepAliveRequested != previousKeepAlive { host?.paneDidChangeLocation(self) }
     }
 
     /// The colour of the first host rule matching the remote host (OSC 7 host first, then the ssh destination).
@@ -374,7 +385,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
 
     /// The session mark for the window's tab.
     var sessionMark: SessionMark {
-        preferences.showSessionMarks ? session.mark(tint: hostTint) : .none
+        preferences.showSessionMarks ? session.mark(tint: hostTint, keepAlive: sshKeepAliveRequested) : .none
     }
 
     /// Subtitle text: the local folder, or the remote location while connected.
@@ -401,6 +412,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         activityModel.reset()
         foregroundGroup = 0; foregroundLeaderPendingExec = false
         session = .local
+        sshKeepAliveRequested = false
         remoteLocation = nil
         host?.paneDidChangeLocation(self)
         finishedUnseen = false
@@ -689,12 +701,14 @@ private extension ForegroundSession {
         return false
     }
 
-    func mark(tint: NSColor?) -> SessionMark {
+    func mark(tint: NSColor?, keepAlive: Bool) -> SessionMark {
         switch self {
         case .local: return .none
         case .root: return .root
         case .remote(let tool, let host):
-            return .remote(host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)", tint: tint)
+            let remote = host.map { "Connected to \($0) over \(tool)" } ?? "Remote session over \(tool)"
+            let description = keepAlive ? remote + " · SSH keepalive requested (30 s)" : remote
+            return .remote(description, tint: tint, keepAlive: keepAlive)
         }
     }
 }

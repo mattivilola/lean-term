@@ -32,7 +32,8 @@ public struct ShellLaunch: Sendable {
     }
 
     public init(account: Account = .current(), inherited: [String: String] = ProcessInfo.processInfo.environment,
-                directory: String? = nil, isExecutable: (String) -> Bool = { path in
+                directory: String? = nil, sshKeepAliveStartup: String? = nil,
+                isExecutable: (String) -> Bool = { path in
                     var directory: ObjCBool = false
                     return FileManager.default.fileExists(atPath: path, isDirectory: &directory)
                         && !directory.boolValue && FileManager.default.isExecutableFile(atPath: path)
@@ -52,6 +53,10 @@ public struct ShellLaunch: Sendable {
         env["TERM_PROGRAM_VERSION"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
         if env["PATH"]?.isEmpty != false { env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" }
         if env["LANG"]?.isEmpty != false && env["LC_ALL"]?.isEmpty != false { env["LANG"] = "en_US.UTF-8" }
+        if let sshKeepAliveStartup, execName == "-zsh" {
+            env["LEANTERM_ORIGINAL_ZDOTDIR"] = env["ZDOTDIR"]
+            env["ZDOTDIR"] = sshKeepAliveStartup
+        }
         environment = env.keys.sorted().map { "\($0)=\(env[$0]!)" }
         self.directory = directory ?? account.home
     }

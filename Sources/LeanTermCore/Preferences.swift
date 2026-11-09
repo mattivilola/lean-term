@@ -70,6 +70,7 @@ public struct Preferences: Equatable, Sendable {
     public var showActivityScanner = true
     public var showTabActivity = true
     public var showSessionMarks = true
+    public var sshKeepAlive = false
     /// Margin bars, scanner pulses and the red finished ring for commands that report an exit code (OSC 133 `D`).
     public var showCommandStatus = true
     /// Off by default: turning it on triggers the macOS notification permission prompt.
@@ -112,6 +113,7 @@ public struct Preferences: Equatable, Sendable {
         showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
         showTabActivity = defaults.object(forKey: "showTabActivity") == nil ? true : defaults.bool(forKey: "showTabActivity")
         showSessionMarks = defaults.object(forKey: "showSessionMarks") == nil ? true : defaults.bool(forKey: "showSessionMarks")
+        sshKeepAlive = defaults.bool(forKey: "sshKeepAlive")
         showCommandStatus = defaults.object(forKey: "showCommandStatus") == nil ? true : defaults.bool(forKey: "showCommandStatus")
         notifyInBackground = defaults.bool(forKey: "notifyInBackground")
         hostColorRules = defaults.data(forKey: "hostColorRules").flatMap { try? JSONDecoder().decode([HostColorRule].self, from: $0) } ?? []
@@ -157,6 +159,7 @@ public struct Preferences: Equatable, Sendable {
 
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
+        defaults.removeObject(forKey: "sshKeepAlive")
         SessionWorkspace.clear(in: defaults)
         for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "cursorBlink", "lineSpacing", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "findMatchCase", "findUseRegex", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
             defaults.removeObject(forKey: key)
@@ -177,6 +180,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(showActivityScanner, forKey: "showActivityScanner")
         defaults.set(showTabActivity, forKey: "showTabActivity")
         defaults.set(showSessionMarks, forKey: "showSessionMarks")
+        defaults.set(sshKeepAlive, forKey: "sshKeepAlive")
         defaults.set(showCommandStatus, forKey: "showCommandStatus")
         defaults.set(notifyInBackground, forKey: "notifyInBackground")
         defaults.set(try? JSONEncoder().encode(hostColorRules), forKey: "hostColorRules")

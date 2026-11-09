@@ -20,6 +20,17 @@ import Testing
     #expect(ForegroundSession.sshDestination(arguments: ["ssh", "-v"]) == nil)
 }
 
+@Test func sshKeepAliveMarkTracksTheClientOption() {
+    let option = ForegroundSession.sshKeepAliveOption
+    func process(_ name: String, _ arguments: [String]) -> ForegroundProcess {
+        ForegroundProcess(name: name, arguments: arguments, effectiveUserID: 501)
+    }
+    #expect(ForegroundSession.requestsSSHKeepAlive(process("ssh", ["/usr/bin/ssh", option, "host"])))
+    #expect(!ForegroundSession.requestsSSHKeepAlive(process("ssh", ["ssh", "host", "echo", option])))
+    #expect(!ForegroundSession.requestsSSHKeepAlive(process("mosh-client", ["mosh-client", option])))
+    #expect(!ForegroundSession.requestsSSHKeepAlive(nil))
+}
+
 @Test func remoteDirectoryNamesOnlyOtherMachines() {
     let remote = ShellLaunch.remoteDirectory(from: "file://build-01/var/log", localHost: "mac.local")
     #expect(remote?.host == "build-01")
