@@ -3,8 +3,10 @@ import LeanTermCore
 
 @MainActor
 final class ResourceStatusView: NSView {
-    private let cpuLabel = NSTextField(labelWithString: "CPU —")
-    private let memoryLabel = NSTextField(labelWithString: "MEM —")
+    let cpuButton = NSButton(title: "CPU —", target: nil, action: nil)
+    let memoryButton = NSButton(title: "MEM —", target: nil, action: nil)
+    var focusedProcesses: () -> [PaneProcessUsage] = { [] }
+    private let breakdown = NSPopover()
     private let cpuGraph = ResourceSparklineView()
     private let memoryGraph = ResourceSparklineView()
     private static let cpuWidth: CGFloat = 104
@@ -34,10 +36,10 @@ final class ResourceStatusView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        let cpuRow = NSStackView(views: [cpuLabel, cpuGraph])
+        let cpuRow = NSStackView(views: [cpuButton, cpuGraph])
         cpuRow.orientation = .horizontal
         cpuRow.spacing = Self.graphSpacing
-        let memoryRow = NSStackView(views: [memoryLabel, memoryGraph])
+        let memoryRow = NSStackView(views: [memoryButton, memoryGraph])
         memoryRow.orientation = .horizontal
         memoryRow.spacing = Self.graphSpacing
         let row = NSStackView(views: [cpuRow, memoryRow])
@@ -46,14 +48,14 @@ final class ResourceStatusView: NSView {
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
 
-        for label in [cpuLabel, memoryLabel] {
-            label.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
-            label.textColor = .secondaryLabelColor
-            label.lineBreakMode = .byClipping
-            label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for button in [cpuButton, memoryButton] {
+            button.isBordered = false
+            button.alignment = .right
+            button.lineBreakMode = .byClipping
+            button.target = self
+            button.action = #selector(showBreakdown(_:))
         }
-        cpuLabel.alignment = .right
-        memoryLabel.alignment = .right
+        breakdown.behavior = .transient
         cpuGraph.setContentHuggingPriority(.required, for: .horizontal)
         memoryGraph.setContentHuggingPriority(.required, for: .horizontal)
 
@@ -62,15 +64,13 @@ final class ResourceStatusView: NSView {
             row.trailingAnchor.constraint(equalTo: trailingAnchor),
             row.centerYAnchor.constraint(equalTo: centerYAnchor),
             heightAnchor.constraint(equalToConstant: 18),
-            cpuLabel.widthAnchor.constraint(equalToConstant: Self.cpuWidth),
-            memoryLabel.widthAnchor.constraint(equalToConstant: Self.memoryWidth),
+            cpuButton.widthAnchor.constraint(equalToConstant: Self.cpuWidth),
+            memoryButton.widthAnchor.constraint(equalToConstant: Self.memoryWidth),
             cpuGraph.widthAnchor.constraint(equalToConstant: Self.graphWidth),
             memoryGraph.widthAnchor.constraint(equalToConstant: Self.graphWidth)
         ])
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
-        setAccessibilityElement(true)
-        setAccessibilityRole(.group)
         applyAccent(.controlAccentColor)
         update(total: ProcessMetricsSnapshot(), pane: nil)
     }
@@ -111,13 +111,82 @@ final class ResourceStatusView: NSView {
         let scales = "Sparklines track totals. CPU scale: 0–\(cpuScale)%. Memory scale: 0–\(memoryScale) MiB."
         let message = "\(description) \(details) \(scales)"
         setAccessibilityLabel(message)
-        setAccessibilityValue(message)
         toolTip = message
+        cpuButton.toolTip = "Show the focused pane’s processes by CPU. \(message)"
+        memoryButton.toolTip = "Show the focused pane’s processes by memory. \(message)"
     }
 
     private func setText(_ cpu: String, _ memory: String) {
-        if cpuLabel.stringValue != cpu { cpuLabel.stringValue = cpu }
-        if memoryLabel.stringValue != memory { memoryLabel.stringValue = memory }
+        for (button, title, metric) in [(cpuButton, cpu, "CPU"), (memoryButton, memory, "Memory")] {
+            guard button.attributedTitle.string != title else { continue }
+            button.attributedTitle = NSAttributedString(string: title, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ])
+            button.setAccessibilityLabel("\(title). Show processes by \(metric)")
+        }
+    }
+
+    func closeProcessBreakdown() { breakdown.close() }
+
+    var isProcessBreakdownShown: Bool { breakdown.isShown }
+
+    @objc private func showBreakdown(_ sender: NSButton) {
+        if breakdown.isShown {
+            breakdown.close()
+            return
+        }
+        let byCPU = sender === cpuButton
+        let processes = focusedProcesses().sorted {
+            if byCPU {
+                let left = $0.cpuPercent ?? -1
+                let right = $1.cpuPercent ?? -1
+                if left != right { return left > right }
+            } else if $0.physicalFootprintBytes != $1.physicalFootprintBytes {
+                return $0.physicalFootprintBytes > $1.physicalFootprintBytes
+            }
+            return $0.pid < $1.pid
+        }
+        let title = NSTextField(labelWithString: byCPU ? "Pane processes by CPU" : "Pane processes by memory")
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        let content = NSStackView()
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 8
+        content.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        content.addArrangedSubview(title)
+        if processes.isEmpty {
+            content.addArrangedSubview(NSTextField(labelWithString: "No local process readings yet."))
+        } else {
+            let heading = ["Process", "PID", "CPU", "Memory"].map {
+                let label = NSTextField(labelWithString: $0)
+                label.font = .systemFont(ofSize: 11, weight: .medium)
+                label.textColor = .secondaryLabelColor
+                return label
+            }
+            let rows = processes.prefix(8).map { process in
+                [process.name, String(process.pid), process.cpuPercent.map(Self.cpuText) ?? "—",
+                 "\(Self.memoryText(process.physicalFootprintBytes)) MiB"].map {
+                    let label = NSTextField(labelWithString: $0)
+                    label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+                    return label
+                }
+            }
+            let grid = NSGridView(views: [heading] + rows)
+            grid.columnSpacing = 12
+            grid.rowSpacing = 4
+            for column in 1..<grid.numberOfColumns { grid.column(at: column).xPlacement = .trailing }
+            content.addArrangedSubview(grid)
+            let detail = NSTextField(labelWithString: "Local snapshot · \(rows.count) of \(processes.count) processes")
+            detail.font = .systemFont(ofSize: 10)
+            detail.textColor = .secondaryLabelColor
+            content.addArrangedSubview(detail)
+        }
+        let controller = NSViewController()
+        controller.view = content
+        breakdown.contentViewController = controller
+        breakdown.contentSize = content.fittingSize
+        breakdown.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
     func applyAccent(_ color: NSColor) {

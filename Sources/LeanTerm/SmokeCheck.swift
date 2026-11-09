@@ -102,14 +102,9 @@ final class SmokeCheck {
         try await wait { first.terminal.findNext("LT_VISIBLE_NOW") }
         try expect(first.terminal.findNext("LT_OLD_ROW_1"), "History marker is searchable before clear")
         first.terminal.selectAll()
-        let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
-            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: first.window!.windowNumber,
-            context: nil, characters: "k", charactersIgnoringModifiers: "k", isARepeat: false, keyCode: 40)!
-        try expect(NSApp.mainMenu?.performKeyEquivalent(with: key) == true, "Cmd-K invokes the configured clear action")
+        try pressClearShortcut(in: first)
         try await wait { !first.terminal.findNext("LT_VISIBLE_NOW") && !first.terminal.findNext("LT_OLD_ROW_1") }
-        try expect(first.terminal.visibleRowsText(0..<first.terminal.terminalDimensions.rows).allSatisfy {
-            $0.trimmingCharacters(in: .whitespaces).isEmpty
-        } && !first.terminal.selectionActive, "Cmd-K clears the screen, history, search results and selection")
+        try expect(!first.terminal.selectionActive, "Cmd-K clears the history, old output, search results and selection")
         try expect(first.scrollbackStatus.stringValue == "Scrollback 0 / 10k (0%)",
                    "Cmd-K resets the footer’s scrollback count")
 
@@ -252,6 +247,7 @@ final class SmokeCheck {
     }
 
     private func runResourceFooter() async throws {
+        NSApp.activate(ignoringOtherApps: true)
         guard let app, let session = app.newTerminal(smoke: true), let window = session.window,
               let content = window.contentView else { throw Failure(message: "No native session") }
         window.setContentSize(NSSize(width: 780, height: 480))
@@ -259,12 +255,12 @@ final class SmokeCheck {
         let idlePane = session.focusedPane
         try await wait { metrics.snapshot.status == .available || metrics.snapshot.status == .unavailable }
         try expect(metrics.snapshot.status == .available, "Local process sampler can read the process tree")
-        try await wait { metrics.paneUsage[idlePane.id]?.cpuPercent != nil }
+        try await wait("the focused pane’s CPU baseline") { metrics.paneUsage[idlePane.id]?.cpuPercent != nil }
 
         session.split(.horizontal)
         let busyPane = session.focusedPane
         try expect(busyPane !== idlePane, "Split focuses the new pane")
-        try await wait { metrics.paneUsage[busyPane.id]?.cpuPercent != nil }
+        try await wait("the second pane’s CPU baseline") { metrics.paneUsage[busyPane.id]?.cpuPercent != nil }
         busyPane.terminal.send(txt: "\u{15}/bin/zsh -fc 'while (( SECONDS < 5 )); do :; done'\r")
         try await wait {
             let usage = metrics.paneUsage
@@ -275,6 +271,15 @@ final class SmokeCheck {
         try expect((metrics.snapshot.cpuPercent ?? 0) >= (busy?.cpuPercent ?? 0) &&
                    (metrics.snapshot.physicalFootprintBytes ?? 0) > (busy?.physicalFootprintBytes ?? 0) + (idle?.physicalFootprintBytes ?? 0),
                    "Focused pane includes the local child process and total includes both panes and the app")
+        try expect(metrics.paneProcesses[busyPane.id]?.contains {
+            $0.pid != busyPane.runningShellPID && !$0.name.isEmpty && ($0.cpuPercent ?? 0) > 35
+        } == true, "The process breakdown includes the busy child by name and PID")
+        session.resourceStatus.cpuButton.performClick(nil)
+        try expect(session.resourceStatus.isProcessBreakdownShown, "Clicking CPU opens the pane’s process breakdown")
+        session.resourceStatus.closeProcessBreakdown()
+        session.resourceStatus.memoryButton.performClick(nil)
+        try expect(session.resourceStatus.isProcessBreakdownShown, "Clicking memory opens the pane’s process breakdown")
+        session.resourceStatus.closeProcessBreakdown()
 
         let busyDescription = session.resourceStatus.toolTip
         window.makeFirstResponder(idlePane.terminal)
@@ -291,20 +296,73 @@ final class SmokeCheck {
         try expect(!session.resourceStatus.showsSparklines && compact.width == session.resourceStatus.intrinsicContentSize.width &&
                    compact.minX >= 0 && compact.maxX <= content.bounds.width,
                    "Resource labels fit a minimum-width terminal window")
+        window.setContentSize(NSSize(width: 780, height: 480))
+        try await checkFooterHistory(session)
         session.beginShutdown()
         try await wait { app.sessions.isEmpty }
+    }
+
+    private func checkFooterHistory(_ session: TerminalWindow) async throws {
+        let terminal = session.terminal
+        let esc = "\u{1B}", bell = "\u{7}"
+        let history = "\r\n" + String(repeating: "LT_OLD_OUTPUT\r\n", count: 120)
+        terminal.feed(text: history + "LT_UNMARKED_PROMPT")
+        try await wait {
+            terminal.scrollbackUsage.used > 0 &&
+                terminal.visibleRowsText(0..<terminal.terminalDimensions.rows).contains { $0.contains("LT_UNMARKED_PROMPT") }
+        }
+        terminal.scrollTo(row: 0)
+        try expect(!session.jumpToLiveButton.isHidden, "Browsing history shows Jump to Live")
+        session.jumpToLiveButton.performClick(nil)
+        try expect(!terminal.scrollbackUsage.isBrowsing && session.jumpToLiveButton.isHidden,
+                   "Clicking Jump to Live returns to following output")
+        try pressClearShortcut(in: session)
+        try expect(terminal.scrollbackUsage.used == 0 && terminal.visibleRowsText(0..<1).first?.hasPrefix("LT_UNMARKED_PROMPT") == true,
+                   "Cmd-K preserves the prompt of a shell without integration")
+
+        terminal.feed(text: history + "\(esc)]133;C\(bell)")
+        try await Task.sleep(for: .milliseconds(150))
+        terminal.feed(text: "\(esc)]133;D;7\(bell)\(esc)]133;A\(bell)LT_PROMPT_LINE\r\n\(esc)]133;B\(bell)LT_DRAFT")
+        try await wait { session.commandResultStatus.stringValue.hasPrefix("Exit 7") }
+        try expect((session.focusedPane.lastCommandResult?.duration ?? 0) > 0 &&
+                   !session.commandResultStatus.isHidden, "The last command shows its exit code and elapsed time")
+        session.focusedPane.clearScreenAndScrollback()
+        let rows = terminal.visibleRowsText(0..<terminal.terminalDimensions.rows)
+        try expect(terminal.scrollbackUsage.used == 0 && rows.first?.hasPrefix("LT_PROMPT_LINE") == true &&
+                   rows.dropFirst().first?.hasPrefix("LT_DRAFT") == true &&
+                   !rows.contains { $0.contains("LT_OLD_OUTPUT") },
+                   "Clearing history moves the marked prompt and unsubmitted input to the top")
+        terminal.feed(text: "_CONTINUES")
+        try await wait { terminal.visibleRowsText(0..<terminal.terminalDimensions.rows).contains { $0.contains("LT_DRAFT_CONTINUES") } }
+
+        terminal.feed(text: "\(esc)[?1049h\(esc)[?2004hLT_ALT_SCREEN")
+        try await wait { terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true }
+        session.focusedPane.clearScreenAndScrollback()
+        let modes = terminal.terminalInputStateSnapshot()
+        try expect(modes?.isAlternateBuffer == true && modes?.bracketedPasteMode == true &&
+                   !terminal.visibleRowsText(0..<terminal.terminalDimensions.rows).contains { $0.contains("LT_ALT_SCREEN") },
+                   "Clearing a full-screen app erases its screen and preserves its terminal modes")
+        terminal.feed(text: "\(esc)[?1049l")
+    }
+
+    private func pressClearShortcut(in session: TerminalWindow) throws {
+        guard let window = session.window, let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+            context: nil, characters: "k", charactersIgnoringModifiers: "k", isARepeat: false, keyCode: 40)
+        else { throw Failure(message: "Could not create Cmd-K event") }
+        try expect(NSApp.mainMenu?.performKeyEquivalent(with: key) == true, "Cmd-K invokes the configured clear action")
     }
 
     private func expect(_ value: Bool, _ description: String) throws {
         guard value else { throw Failure(message: description) }
         checks.append(description)
     }
-    private func wait(_ condition: () -> Bool) async throws {
+    private func wait(_ description: String = "native session state", _ condition: () -> Bool) async throws {
         for _ in 0..<100 {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw Failure(message: "Timed out waiting for native session state")
+        throw Failure(message: "Timed out waiting for \(description)")
     }
     private func runQuitCancellation() async throws {
         guard let app else { throw Failure(message: "No app for cancellation check") }

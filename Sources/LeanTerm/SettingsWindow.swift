@@ -42,7 +42,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let resources = NSButton(checkboxWithTitle: "Show CPU and memory graphs", target: nil, action: nil)
     private let activityScanner = NSButton(checkboxWithTitle: "Show running-command scanner", target: nil, action: nil)
     private let tabActivity = NSButton(checkboxWithTitle: "Mark busy and finished tabs", target: nil, action: nil)
-    private let commandStatus = NSButton(checkboxWithTitle: "Show command status in the margin", target: nil, action: nil)
+    private let commandStatus = NSButton(checkboxWithTitle: "Show command status in the margin and status bar", target: nil, action: nil)
     private let notifications = NSButton(checkboxWithTitle: "Show notifications and Dock badge", target: nil, action: nil)
     private let sessionMarks = NSButton(checkboxWithTitle: "Mark remote and root sessions", target: nil, action: nil)
     private let quickEnabled = NSButton(checkboxWithTitle: "Show Quick Terminal with", target: nil, action: nil)

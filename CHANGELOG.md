@@ -3,6 +3,9 @@
 ## Unreleased
 
 - The status bar shows CPU and memory for the focused pane alongside Lean Term’s total local usage. Scrollback appears before these metrics.
+- Jump to live output from the status bar while browsing history. The status bar also shows the last command’s exit status and duration when shell integration provides them.
+- Click CPU or memory to see the focused pane’s top local processes.
+- ⌘K clears the screen and scrollback while keeping the current shell prompt and input visible.
 
 ## 0.7.0 — Scrollback usage and SSH keepalives
 

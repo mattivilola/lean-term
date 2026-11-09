@@ -32,6 +32,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     private var activeCopyNotice: String?
     private var copyNotice: Task<Void, Never>?
     private let dimensions = NSTextField(labelWithString: "")
+    let commandResultStatus = NSTextField(labelWithString: "")
+    let jumpToLiveButton = NSButton(title: "↓ Live", target: nil, action: nil)
     let scrollbackStatus = NSTextField(labelWithString: "")
     private var lastScrollbackUsage: (used: Int, capacity: Int)?
     let resourceStatus = ResourceStatusView()
@@ -90,16 +92,31 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         window.contentView = surface
         paneArea.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(paneArea)
-        let footer = NSStackView(views: [status, NSView(), restart, scrollbackStatus, resourceStatus, dimensions])
+        let footer = NSStackView(views: [status, commandResultStatus, NSView(), restart, jumpToLiveButton, scrollbackStatus, resourceStatus, dimensions])
         footer.orientation = .horizontal; footer.spacing = 12
         footer.setClippingResistancePriority(.defaultLow, for: .horizontal)
-        footer.setVisibilityPriority(.detachOnlyIfNecessary, for: scrollbackStatus)
+        footer.setVisibilityPriority(.detachOnlyIfNecessary, for: commandResultStatus)
+        footer.setVisibilityPriority(.init(rawValue: 950), for: scrollbackStatus)
         footer.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(footer)
+        resourceStatus.focusedProcesses = { [weak self] in
+            guard let self, self.focusedPane.runningShellPID != nil else { return [] }
+            return self.app?.metricsMonitor.paneProcesses[self.focusedPane.id] ?? []
+        }
         window.tab.accessoryView = tabMark
         status.font = .systemFont(ofSize: 11)
         status.lineBreakMode = .byTruncatingMiddle
         status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        commandResultStatus.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        commandResultStatus.setContentHuggingPriority(.required, for: .horizontal)
+        commandResultStatus.isHidden = true
+        jumpToLiveButton.bezelStyle = .inline
+        jumpToLiveButton.controlSize = .small
+        jumpToLiveButton.target = self
+        jumpToLiveButton.action = #selector(jumpToLive)
+        jumpToLiveButton.toolTip = "Jump to live output"
+        jumpToLiveButton.setAccessibilityLabel("Jump to live output")
+        jumpToLiveButton.isHidden = true
         scrollbackStatus.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
         scrollbackStatus.lineBreakMode = .byTruncatingTail
         scrollbackStatus.setContentHuggingPriority(.required, for: .horizontal)
@@ -199,6 +216,7 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     private func visibilityChanged() {
         app?.refreshResourceMonitoring()
         if isResourceDisplayVisible { updateScrollbackStatus() }
+        else { resourceStatus.closeProcessBreakdown() }
         for pane in panes { pane.renderScanner() }
         renderActivity()
     }
@@ -240,9 +258,11 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
     func apply(_ value: Preferences) {
         preferences = value
         resourceStatus.isHidden = !value.showResourceUsage
+        if !value.showResourceUsage { resourceStatus.closeProcessBreakdown() }
         updateResourceLayout()
         for pane in panes { pane.apply(value) }
         updateScrollbackStatus()
+        updateCommandResult()
         updateSubtitle()
         applyTheme()
         updateDimming()
@@ -263,6 +283,8 @@ final class TerminalWindow: NSWindowController, NSWindowDelegate, NSToolbarDeleg
         window?.backgroundColor = theme.background
         surface.layer?.backgroundColor = theme.background.cgColor
         status.textColor = .secondaryLabelColor
+        commandResultStatus.textColor = .secondaryLabelColor
+        jumpToLiveButton.contentTintColor = theme.accent
         scrollbackStatus.textColor = .secondaryLabelColor
         dimensions.textColor = .tertiaryLabelColor
         restart.contentTintColor = theme.accent
@@ -525,12 +547,14 @@ extension TerminalWindow {
 
     private func focus(_ pane: TerminalPane) {
         guard pane !== focusedPane, panes.contains(where: { $0 === pane }) else { return }
+        resourceStatus.closeProcessBreakdown()
         focusedPane = pane
         window?.title = customName ?? pane.terminalTitle ?? pane.folderName
         updateSubtitle()
         status.stringValue = pane.statusText
         dimensions.stringValue = pane.dimensionsText
         updateScrollbackStatus()
+        updateCommandResult()
         updateResourceUsage()
         restart.isHidden = pane.restartHidden
         renderActivity()
@@ -544,8 +568,10 @@ extension TerminalWindow {
 
     private func updateScrollbackStatus() {
         let usage = terminal.scrollbackUsage
-        if let lastScrollbackUsage, lastScrollbackUsage == usage { return }
-        lastScrollbackUsage = usage
+        if jumpToLiveButton.isHidden == usage.isBrowsing { jumpToLiveButton.isHidden = !usage.isBrowsing }
+        let counts = (usage.used, usage.capacity)
+        if let lastScrollbackUsage, lastScrollbackUsage == counts { return }
+        lastScrollbackUsage = counts
         let percent = usage.capacity > 0 ? usage.used * 100 / usage.capacity : 0
         let capacity = usage.capacity >= 1_000 && usage.capacity.isMultiple(of: 1_000)
             ? "\(usage.capacity / 1_000)k" : usage.capacity.formatted()
@@ -553,6 +579,27 @@ extension TerminalWindow {
         let detail = "This pane retains \(usage.used.formatted()) of \(usage.capacity.formatted()) scrollback lines."
         scrollbackStatus.toolTip = detail
         scrollbackStatus.setAccessibilityHelp(detail)
+    }
+
+    @objc private func jumpToLive() {
+        terminal.scrollTo(row: .max)
+        window?.makeFirstResponder(terminal)
+    }
+
+    private func updateCommandResult() {
+        guard preferences.showCommandStatus, let result = focusedPane.lastCommandResult else {
+            commandResultStatus.isHidden = true
+            commandResultStatus.stringValue = ""
+            return
+        }
+        let elapsed = Duration.seconds(result.duration).formatted(.units(
+            allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2,
+            fractionalPart: .show(length: 1)
+        ))
+        let outcome = result.exitCode.map { "Exit \($0)" } ?? "Finished"
+        commandResultStatus.stringValue = "\(outcome) · \(elapsed)"
+        commandResultStatus.toolTip = "Last command · \(outcome) · \(elapsed)"
+        commandResultStatus.isHidden = false
     }
 
     // MARK: View tree
@@ -725,6 +772,7 @@ extension TerminalWindow: TerminalPaneHost {
         updateScrollbackStatus()
     }
     func paneDidChangeScrollback(_ pane: TerminalPane) { if pane === focusedPane { updateScrollbackStatus() } }
+    func paneDidFinishCommand(_ pane: TerminalPane) { if pane === focusedPane { updateCommandResult() } }
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int) { showCopyNotice(removed: removed) }
     func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool) {
         guard var value = app?.preferences else { return }

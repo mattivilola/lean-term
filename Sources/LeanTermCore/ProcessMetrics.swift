@@ -87,11 +87,15 @@ public struct ProcessMetricsModel: Sendable {
         for (pid, reading) in readings {
             let (sum, overflow) = memory.addingReportingOverflow(reading.physicalFootprintBytes)
             memory = overflow ? UInt64.max : sum
-            if let previous = previousReadings[pid], let percent = Self.cpuPercent(from: previous, to: reading) {
+            if let percent = cpuPercent(for: pid, reading: reading) {
                 cpu = (cpu ?? 0) + percent
             }
         }
         return ProcessMetricsUsage(cpuPercent: cpu, physicalFootprintBytes: memory)
+    }
+
+    public func cpuPercent(for pid: Int32, reading: ProcessMetricsReading) -> Double? {
+        previousReadings[pid].flatMap { Self.cpuPercent(from: $0, to: reading) }
     }
 
     public mutating func record(_ readings: [Int32: ProcessMetricsReading]?) {

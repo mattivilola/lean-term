@@ -2,12 +2,20 @@ import AppKit
 import Darwin
 import LeanTermCore
 
+struct PaneProcessUsage {
+    let pid: pid_t
+    let name: String
+    let cpuPercent: Double?
+    let physicalFootprintBytes: UInt64
+}
+
 @MainActor
 final class ProcessMetricsMonitor {
     var onChange: (@MainActor () -> Void)?
     var shellPIDs: () -> [pid_t: UUID] = { [:] }
     private(set) var snapshot = ProcessMetricsSnapshot()
     private(set) var paneUsage: [UUID: ProcessMetricsUsage] = [:]
+    private(set) var paneProcesses: [UUID: [PaneProcessUsage]] = [:]
 
     private var model = ProcessMetricsModel()
     private var timer: Timer?
@@ -18,6 +26,7 @@ final class ProcessMetricsMonitor {
     private struct Sample: Sendable {
         var total: [pid_t: ProcessMetricsReading] = [:]
         var panes: [UUID: [pid_t: ProcessMetricsReading]] = [:]
+        var names: [pid_t: String] = [:]
     }
 
     /// Samples every `interval` seconds while enabled; changing the interval restarts the timer.
@@ -44,6 +53,7 @@ final class ProcessMetricsMonitor {
             timer = nil
             generation += 1
             paneUsage.removeAll()
+            paneProcesses.removeAll()
             model.setRunning(false)
             publish()
         }
@@ -64,6 +74,13 @@ final class ProcessMetricsMonitor {
         sampling = false
         guard generation == self.generation else { self.sample(); return }
         paneUsage = sample?.panes.compactMapValues { model.usage(for: $0) } ?? [:]
+        paneProcesses = sample?.panes.mapValues { readings in
+            readings.map { pid, reading in
+                PaneProcessUsage(pid: pid, name: sample?.names[pid] ?? "Process",
+                                 cpuPercent: model.cpuPercent(for: pid, reading: reading),
+                                 physicalFootprintBytes: reading.physicalFootprintBytes)
+            }
+        } ?? [:]
         model.record(sample?.total)
         publish()
     }
@@ -77,9 +94,13 @@ final class ProcessMetricsMonitor {
     nonisolated private static func readSample(shells: [pid_t: UUID]) -> Sample? {
         let appPID = getpid()
         let listingStartedAt = mach_absolute_time()
-        guard let children = readProcessTree() else { return nil }
+        guard let entries = readProcessTable() else { return nil }
+        var children: [pid_t: [Int]] = [:]
+        for index in entries.indices where entries[index].kp_proc.p_pid > 0 {
+            children[entries[index].kp_eproc.e_ppid, default: []].append(index)
+        }
         var sample = Sample()
-        var pending: [(pid: pid_t, pane: UUID?)] = [(appPID, nil)]
+        var pending: [(pid: pid_t, pane: UUID?, index: Int?)] = [(appPID, nil, nil)]
         var visited = Set<pid_t>()
         while let process = pending.popLast() {
             guard visited.insert(process.pid).inserted else { continue }
@@ -87,17 +108,23 @@ final class ProcessMetricsMonitor {
                 // A PID recycled after the table read belongs to a different process.
                 guard reading.startedAtTicks <= listingStartedAt else { continue }
                 sample.total[process.pid] = reading
-                if let pane = process.pane { sample.panes[pane, default: [:]][process.pid] = reading }
+                if let pane = process.pane, let index = process.index {
+                    sample.panes[pane, default: [:]][process.pid] = reading
+                    sample.names[process.pid] = withUnsafeBytes(of: entries[index].kp_proc.p_comm) { bytes in
+                        String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+                    }
+                }
             }
-            for pid in children[process.pid, default: []] {
+            for index in children[process.pid, default: []] {
+                let pid = entries[index].kp_proc.p_pid
                 let pane = process.pid == appPID ? shells[pid] : process.pane
-                pending.append((pid, pane))
+                pending.append((pid, pane, index))
             }
         }
         return sample
     }
 
-    nonisolated private static func readProcessTree() -> [pid_t: [pid_t]]? {
+    nonisolated private static func readProcessTable() -> ArraySlice<kinfo_proc>? {
         var mib = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
         let mibCount = UInt32(mib.count)
         let stride = MemoryLayout<kinfo_proc>.stride
@@ -108,13 +135,7 @@ final class ProcessMetricsMonitor {
             var entries = Array(repeating: kinfo_proc(), count: bytes / stride + 32)
             bytes = entries.count * stride
             let result = entries.withUnsafeMutableBytes { sysctl(&mib, mibCount, $0.baseAddress, &bytes, nil, 0) }
-            if result == 0 {
-                var children: [pid_t: [pid_t]] = [:]
-                for entry in entries.prefix(bytes / stride) where entry.kp_proc.p_pid > 0 {
-                    children[entry.kp_eproc.e_ppid, default: []].append(entry.kp_proc.p_pid)
-                }
-                return children
-            }
+            if result == 0 { return entries.prefix(bytes / stride) }
             guard errno == ENOMEM else { return nil }
         }
         return nil

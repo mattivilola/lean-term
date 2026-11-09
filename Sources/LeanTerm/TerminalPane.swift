@@ -53,6 +53,7 @@ protocol TerminalPaneHost: AnyObject {
     func pane(_ pane: TerminalPane, setRestartHidden hidden: Bool)
     func pane(_ pane: TerminalPane, didChangeDimensions text: String)
     func paneDidChangeScrollback(_ pane: TerminalPane)
+    func paneDidFinishCommand(_ pane: TerminalPane)
     func pane(_ pane: TerminalPane, didCopyRedacted removed: Int)
     /// The user flipped the find bar's "Aa" or ".*" toggle.
     func pane(_ pane: TerminalPane, didChangeFindMatchCase matchCase: Bool, regex: Bool)
@@ -117,6 +118,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     private var shellMarksSeen = false
     private var commandStartTime: TimeInterval?
     private var lastCommandEnd: (exitCode: Int, time: TimeInterval)?
+    private(set) var lastCommandResult: (exitCode: Int?, duration: TimeInterval)?
     private var statusRefresh: DispatchWorkItem?
     private var statusRefreshTime: TimeInterval = 0
     /// Set by a finished command; the next refresh that shows its new bar fades it in.
@@ -512,13 +514,20 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
             let duration = commandStartTime.map { time - $0 }
             commandStartTime = nil
             lastCommandEnd = exitCode.map { ($0, time) }
+            if let duration, duration >= 0 {
+                lastCommandResult = (exitCode, duration)
+                host?.paneDidFinishCommand(self)
+            }
             if let exitCode, preferences.showCommandStatus, isBeingViewed,
                let pulse = CommandOutcome(exitCode: exitCode).pulse(after: duration) {
                 scannerPulse.pulse(pulse == .failure ? theme.failure : theme.phosphor)
             }
             fadeInDeadline = time + 1
             scheduleStatusRefresh()
-        case .promptStart, .other:
+        case .promptStart:
+            commandStartTime = nil
+            scheduleStatusRefresh()
+        case .other:
             scheduleStatusRefresh()
         }
     }
@@ -649,11 +658,8 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
     }
 
     func clearScreenAndScrollback() {
-        terminal.selectNone()
-        // Local parser output only: never send a control key/command to the shell.
-        // Keep terminal modes and the configured history capacity intact.
-        terminal.feed(text: "\u{1B}[H\u{1B}[2J")
-        terminal.clearScrollback()
+        terminal.clearScreenAndHistoryKeepingInput()
+        find.contentMayHaveChanged()
     }
 
     private static func displayPath(_ path: String) -> String {
