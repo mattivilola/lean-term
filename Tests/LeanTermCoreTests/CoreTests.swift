@@ -57,9 +57,11 @@ import Testing
     #expect(Preferences.validScrollback(2_000_000) == 100_000)
     defaults.set(12_345, forKey: "scrollbackLines")
     #expect(Preferences(defaults: defaults).scrollbackLines == 10_000)
+    #expect(Preferences(defaults: defaults).alternateScrollSendsArrowKeys)
     var value = Preferences()
     value.restoreSessions = true
     value.sshKeepAlive = true
+    value.alternateScrollSendsArrowKeys = false
     value.appearance = .dark; value.palette = .graphite; value.fontSize = 16; value.scrollbackLines = 50_000; value.optionAsMeta = true
     value.showResourceUsage = false; value.showActivityScanner = false; value.showTabActivity = false; value.showSessionMarks = false; value.showCommandStatus = false; value.notifyInBackground = true; value.hostColorRules = [HostColorRule(pattern: "prod-*", color: .red)]; value.closeTabOnShellExit = true; value.quitAfterLastSession = true; value.secureKeyboardEntry = true; value.confirmMultilinePaste = false; value.redactCopies = true; value.dimInactivePanes = false; value.fileOpener = .app("com.apple.TextEdit")
     value.findMatchCase = true; value.findUseRegex = true
@@ -67,6 +69,8 @@ import Testing
     value.quickTerminalHotKey = QuickTerminalHotKey(keyCode: 49, key: " ", modifiers: [.control, .option])
     value.save(to: defaults)
     #expect(Preferences(defaults: defaults) == value)
+    Preferences.reset(in: defaults)
+    #expect(Preferences(defaults: defaults).alternateScrollSendsArrowKeys)
 }
 
 @Test func cwdRequiresAnExistingLocalDirectory() {

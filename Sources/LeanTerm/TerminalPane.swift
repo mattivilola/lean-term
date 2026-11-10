@@ -463,6 +463,7 @@ final class TerminalPane: NSObject, LocalProcessTerminalViewDelegate {
         let spacing = CGFloat(value.lineSpacing)
         if terminal.lineSpacing != spacing { terminal.lineSpacing = spacing }
         terminal.optionAsMetaKey = value.optionAsMeta
+        terminal.alternateScrollSendsArrowKeys = value.alternateScrollSendsArrowKeys
         find.setOptions(matchCase: value.findMatchCase, regex: value.findUseRegex)
         terminal.confirmsMultilinePaste = value.confirmMultilinePaste
         terminal.redactsCopies = value.redactCopies

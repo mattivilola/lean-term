@@ -66,6 +66,7 @@ public struct Preferences: Equatable, Sendable {
     /// Multiplier for the terminal's row height, 1.0…1.6 in 0.05 steps.
     public var lineSpacing: Double = 1.0
     public var optionAsMeta = false
+    public var alternateScrollSendsArrowKeys = true
     public var showResourceUsage = true
     public var showActivityScanner = true
     public var showTabActivity = true
@@ -109,6 +110,7 @@ public struct Preferences: Equatable, Sendable {
         cursorBlink = defaults.bool(forKey: "cursorBlink")
         lineSpacing = Self.validLineSpacing(defaults.object(forKey: "lineSpacing") as? Double ?? 1.0)
         optionAsMeta = defaults.bool(forKey: "optionAsMeta")
+        alternateScrollSendsArrowKeys = defaults.object(forKey: "alternateScrollSendsArrowKeys") as? Bool ?? true
         showResourceUsage = defaults.object(forKey: "showResourceUsage") == nil ? true : defaults.bool(forKey: "showResourceUsage")
         showActivityScanner = defaults.object(forKey: "showActivityScanner") == nil ? true : defaults.bool(forKey: "showActivityScanner")
         showTabActivity = defaults.object(forKey: "showTabActivity") == nil ? true : defaults.bool(forKey: "showTabActivity")
@@ -160,6 +162,7 @@ public struct Preferences: Equatable, Sendable {
     public static func reset(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "restoreSessions")
         defaults.removeObject(forKey: "sshKeepAlive")
+        defaults.removeObject(forKey: "alternateScrollSendsArrowKeys")
         SessionWorkspace.clear(in: defaults)
         for key in ["appearance", "palette", "fontName", "fontSize", "scrollbackLines", "cursor", "cursorBlink", "lineSpacing", "optionAsMeta", "showResourceUsage", "showActivityScanner", "showTabActivity", "showSessionMarks", "showCommandStatus", "notifyInBackground", "hostColorRules", "closeTabOnShellExit", "quitAfterLastSession", "secureKeyboardEntry", "confirmMultilinePaste", "redactCopies", "dimInactivePanes", "fileOpener", "findMatchCase", "findUseRegex", "quickTerminalEnabled", "quickTerminalHotKey", "quickTerminalHidesOnDeactivate", "shortcuts"] {
             defaults.removeObject(forKey: key)
@@ -176,6 +179,7 @@ public struct Preferences: Equatable, Sendable {
         defaults.set(cursorBlink, forKey: "cursorBlink")
         defaults.set(Self.validLineSpacing(lineSpacing), forKey: "lineSpacing")
         defaults.set(optionAsMeta, forKey: "optionAsMeta")
+        defaults.set(alternateScrollSendsArrowKeys, forKey: "alternateScrollSendsArrowKeys")
         defaults.set(showResourceUsage, forKey: "showResourceUsage")
         defaults.set(showActivityScanner, forKey: "showActivityScanner")
         defaults.set(showTabActivity, forKey: "showTabActivity")

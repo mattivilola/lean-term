@@ -186,14 +186,23 @@ PROMPT_API = '''
     }
 '''
 
-def prompts(text):
+def mac_terminal_view(text):
     text = once(text, PROMPT_ANCHOR, PROMPT_ANCHOR + PROMPT_API, 'Prompt navigation')
-    return once(text, '''        case .bufferActivated:
+    text = once(text, '''        case .bufferActivated:
             updateScroller()
 ''', '''        case .bufferActivated:
             updateScroller()
             terminalDelegate?.scrolled(source: self, position: scrollPosition)
 ''', 'Buffer switch scroll notification')
+    text = once(text, '''    private static let logsMouseInput =
+''', '''    /// Allow wheel events to become arrow keys on the alternate screen when mouse reporting is off.
+    public var alternateScrollSendsArrowKeys = true
+
+    private static let logsMouseInput =
+''', 'Alternate scroll preference')
+    return once(text, '''                return terminal.alternateScrollMode ? .cursorKeys : .none
+''', '''                return terminal.alternateScrollMode && alternateScrollSendsArrowKeys ? .cursorKeys : .none
+''', 'Alternate scroll routing')
 
 def once(text, old, new, what):
     if text.count(old) != 1:
@@ -363,9 +372,10 @@ patches = [
     ('Sources/SwiftTerm/LocalProcess.swift', lifecycle,
      '7be01862b8fb9fa3c4724b3cedd98dbe3a58a1877b40171bf008680e93d58fd3',
      '71cf47429151843315b8875cd6ac75ac5006fe2fdcf925fdaf6861435804be52', ()),
-    ('Sources/SwiftTerm/Mac/MacTerminalView.swift', prompts,
+    ('Sources/SwiftTerm/Mac/MacTerminalView.swift', mac_terminal_view,
      '1c0a7c55bc5bd8bada43ebb1645c769f0495a0eed6ad8cef880d4164afb0fd92',
-     '99e58ebea490e8a004d9e97e7faaefa3db9d72c9e5d077773058732c2dcbc975', ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4', '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', '5eda0fc3e989240ed57934b2f294a607be675b08390f195926f2e813dccc533a', '1cb4e9f5d74ba92e59d842f9dc3fee3e8a0802582c87acdca6e0b572e7cc5082', '7c52045932ea1390312c675a2b8124eff3d54708ea085f15e76effa15c5f3f17')),
+     'be85e7ac6acfbdded7fd718d815623072794ad30ca805c30a4b4d0d84440cdba',
+     ('e90d23a6ee563e760e7f35f1e63aec95b0a62ad98c23089a5f172d0e9764aaf4', '714ce3bd2c1e30649e6c4e7d5444b7759b9b33b855489d6c91b464ddc9cd2daf', '5eda0fc3e989240ed57934b2f294a607be675b08390f195926f2e813dccc533a', '1cb4e9f5d74ba92e59d842f9dc3fee3e8a0802582c87acdca6e0b572e7cc5082', '7c52045932ea1390312c675a2b8124eff3d54708ea085f15e76effa15c5f3f17', '99e58ebea490e8a004d9e97e7faaefa3db9d72c9e5d077773058732c2dcbc975')),
     ('Sources/SwiftTerm/BufferLine.swift', bufferline,
      '206860afb27a442f7fac621d6961ad92e433686e8334b09ee742680104639d2c',
      'e3c63bec7d4c29112a48e9ff76aa366e485c5be830c9b7ee3b09783b6ea95b76', ()),

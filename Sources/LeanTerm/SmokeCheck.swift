@@ -1,5 +1,6 @@
 import AppKit
 import LeanTermCore
+import SwiftTerm
 
 /// An opt-in, bounded native integration check. Normal sessions never run this task.
 @MainActor
@@ -8,6 +9,13 @@ final class SmokeCheck {
     private let report: URL
     private var checks: [String] = []
     private struct Failure: Error { let message: String }
+    private final class WheelInputCapture: LocalProcessTerminalView {
+        var received = ""
+
+        override func send(source: TerminalView, data: ArraySlice<UInt8>) {
+            received += String(decoding: data, as: UTF8.self)
+        }
+    }
     private enum ExitPolicy: String {
         case closeQuit = "close-quit"
         case closeKeep = "close-keep"
@@ -57,6 +65,9 @@ final class SmokeCheck {
                     try await runQuitCancellation()
                 } else if requestedPolicy == "resource-footer" {
                     try await runResourceFooter()
+                    finish(passed: true)
+                } else if requestedPolicy == "wheel-routing" {
+                    try await runWheelRouting()
                     finish(passed: true)
                 } else if hasPolicyArgument {
                     guard let requestedPolicy, let policy = ExitPolicy(rawValue: requestedPolicy) else {
@@ -343,6 +354,50 @@ final class SmokeCheck {
                    !terminal.visibleRowsText(0..<terminal.terminalDimensions.rows).contains { $0.contains("LT_ALT_SCREEN") },
                    "Clearing a full-screen app erases its screen and preserves its terminal modes")
         terminal.feed(text: "\(esc)[?1049l")
+    }
+
+    private func runWheelRouting() async throws {
+        guard let app, let session = app.newTerminal(smoke: true) else { throw Failure(message: "No native session") }
+        guard let up = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1,
+                               wheel1: 1, wheel2: 0, wheel3: 0).flatMap(NSEvent.init(cgEvent:)),
+              let down = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1,
+                                 wheel1: -1, wheel2: 0, wheel3: 0).flatMap(NSEvent.init(cgEvent:)) else {
+            throw Failure(message: "Could not create mouse wheel events")
+        }
+        let capture = WheelInputCapture(frame: .zero)
+        let terminal = TerminalView(frame: NSRect(x: 0, y: 0, width: 480, height: 320))
+        terminal.terminalDelegate = capture
+        let esc = "\u{1B}"
+        terminal.feed(text: "\(esc)[?1049h")
+        try await wait { terminal.terminalInputStateSnapshot()?.isAlternateBuffer == true }
+        terminal.scrollWheel(with: up)
+        terminal.scrollWheel(with: down)
+        try await wait("alternate screen arrow keys") { capture.received == "\(esc)[A\(esc)[B" }
+        try expect(true, "Alternate screen wheel sends arrow keys by default")
+
+        let previous = app.preferences
+        var value = previous
+        value.alternateScrollSendsArrowKeys = false
+        app.updatePreferences(value)
+        defer { app.updatePreferences(previous) }
+        try expect(!session.terminal.alternateScrollSendsArrowKeys,
+                   "Wheel preference updates open terminals")
+        terminal.alternateScrollSendsArrowKeys = value.alternateScrollSendsArrowKeys
+        capture.received = ""
+        terminal.scrollWheel(with: up)
+        terminal.scrollWheel(with: down)
+        terminal.sendKeyUp()
+        try await wait("keyboard arrow key") { !capture.received.isEmpty }
+        try expect(capture.received == "\(esc)[A", "Disabling fallback suppresses wheel arrows and preserves keyboard arrows")
+
+        terminal.feed(text: "\(esc)[?1000h\(esc)[?1006h")
+        try await wait { terminal.currentMouseMode == .vt200 }
+        capture.received = ""
+        terminal.scrollWheel(with: up)
+        try await wait("wheel mouse report") { capture.received.hasPrefix("\(esc)[<64;") }
+        try expect(true, "Mouse reporting still works with arrow fallback disabled")
+        session.beginShutdown()
+        try await wait { app.sessions.isEmpty }
     }
 
     private func pressClearShortcut(in session: TerminalWindow) throws {

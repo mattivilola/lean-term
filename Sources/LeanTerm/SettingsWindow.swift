@@ -32,6 +32,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let redactCopies = NSButton(checkboxWithTitle: "Remove sensitive data when copying", target: nil, action: nil)
     private let confirmPaste = NSButton(checkboxWithTitle: "Confirm multi-line paste without bracketed paste", target: nil, action: nil)
     private let scrollback = NSPopUpButton()
+    private let alternateScroll = NSButton(checkboxWithTitle: "Send arrow keys as a fallback", target: nil, action: nil)
     private let sshKeepAlive = NSButton(checkboxWithTitle: "Keep SSH connections alive", target: nil, action: nil)
     private let fileOpener = NSPopUpButton()
     private let getLeanVSCode = NSButton(title: "Get Lean VS Code…", target: nil, action: nil)
@@ -156,6 +157,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         scrollback.addItems(withTitles: Preferences.scrollbackChoices.map { $0.formatted(.number.grouping(.automatic)) + " lines" })
         scrollback.target = self; scrollback.action = #selector(changed)
         scrollback.setAccessibilityLabel("Scrollback")
+        alternateScroll.target = self
+        alternateScroll.action = #selector(changed)
         sshKeepAlive.target = self
         sshKeepAlive.action = #selector(changed)
         let scrollbackRow = Self.vertical([scrollback,
@@ -180,6 +183,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         ])
         let terminalPage = Self.grid([
             [NSTextField(labelWithString: "Scrollback"), scrollbackRow],
+            [NSTextField(labelWithString: "Mouse wheel"), Self.vertical([alternateScroll,
+                Self.note("Used when a full-screen app such as tmux hasn’t enabled mouse input. Turn off to prevent stray arrow keys.")], spacing: 7)],
             [NSTextField(labelWithString: "SSH"), Self.vertical([sshKeepAlive,
                 Self.note("Requests an encrypted probe after 30 idle seconds. Open a new pane to use it with macOS ssh in zsh. SSH links also use this setting.")], spacing: 7)],
             [NSTextField(labelWithString: "Pasting"), confirmPaste],
@@ -403,6 +408,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         cursor.selectItem(withTitle: value.cursor.title)
         cursorBlink.state = value.cursorBlink ? .on : .off
         scrollback.selectItem(at: Preferences.scrollbackChoices.firstIndex(of: value.scrollbackLines) ?? 2)
+        alternateScroll.state = value.alternateScrollSendsArrowKeys ? .on : .off
         sshKeepAlive.state = value.sshKeepAlive ? .on : .off
         option.state = value.optionAsMeta ? .on : .off
         confirmPaste.state = value.confirmMultilinePaste ? .on : .off
@@ -474,6 +480,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         value.fontSize = size.doubleValue.rounded()
         value.cursor = Preferences.Cursor.allCases[max(0, cursor.indexOfSelectedItem)]
         value.scrollbackLines = Preferences.scrollbackChoices[max(0, scrollback.indexOfSelectedItem)]
+        value.alternateScrollSendsArrowKeys = alternateScroll.state == .on
         value.sshKeepAlive = sshKeepAlive.state == .on
         value.optionAsMeta = option.state == .on
         value.confirmMultilinePaste = confirmPaste.state == .on
