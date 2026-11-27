@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 — Clickable directory listings
+
+- ⌘-click files and folders in plain `ls -al` and eza listings. Folders change the terminal directory, files use your configured opener, and explicit file links take priority.
+- Turn off **Send arrow keys as a fallback** in Settings › Terminal to keep scrolling from sending arrow keys in full-screen terminal apps.
+
 ## 0.8.0 — Resource usage and terminal controls
 
 - The status bar shows CPU and memory for the focused pane alongside Lean Term’s total local usage. Scrollback appears before these metrics.
