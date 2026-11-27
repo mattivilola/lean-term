@@ -240,6 +240,45 @@ import Testing
     #expect(PathDetection.match(in: "'../up/file.c'.", at: 4)?.characters == 1..<13)
 }
 
+@Test @MainActor func longListingsResolveDotfilesDirectoriesAndNamesWithSpaces() throws {
+    let bsd = "drwxr-xr-x@  3 matti  staff  96 Nov 27 13:06 My Folder"
+    let eza = ".rw-r--r--@ 10k matti 16 Nov 13:07 .zshrc"
+    let link = "lrwxr-xr-x - matti 31 May  2024 'Cloud Drive' -> /tmp/cloud"
+    let bsdEntry = try #require(ListingPathDetection.longEntry(in: bsd))
+    let ezaEntry = try #require(ListingPathDetection.longEntry(in: eza))
+    let linkEntry = try #require(ListingPathDetection.longEntry(in: link))
+    #expect(bsdEntry.path.path == "My Folder")
+    #expect(ezaEntry.path.path == ".zshrc")
+    #expect(linkEntry.path.path == "Cloud Drive")
+    #expect(String(Array(link)[linkEntry.characters]) == "Cloud Drive")
+    #expect(ListingPathDetection.longEntry(in: "some other terminal output") == nil)
+
+    let home = ["~/work  ls -al ~", eza, link, "~/work  cd /tmp"]
+    #expect(ListingPathDetection.path(for: ezaEntry, in: home, at: 1, reachesCursor: true, isLong: true)?.path == "~/.zshrc")
+    let current = ["matti % /bin/ls -al", "total 8", bsd]
+    #expect(ListingPathDetection.path(for: bsdEntry, in: current, at: 2, reachesCursor: true, isLong: true)?.path == "./My Folder")
+    #expect(ListingPathDetection.path(for: bsdEntry, in: current + ["matti % cd elsewhere"], at: 2,
+                                      reachesCursor: true, isLong: true) == nil)
+    let quoted = ["% eza -al '/tmp/外部 folder'", bsd]
+    #expect(ListingPathDetection.path(for: bsdEntry, in: quoted, at: 1, reachesCursor: false, isLong: true)?.path == "/tmp/外部 folder/My Folder")
+    for unsupported in ["% ls -al /tmp /var", "% ls -al $(pwd)", "% cd somewhere && ls -al", "% ls -alR"] {
+        #expect(ListingPathDetection.path(for: bsdEntry, in: [unsupported, bsd], at: 1,
+                                          reachesCursor: true, isLong: true) == nil)
+    }
+}
+
+@Test @MainActor func shortEzaListingsKeepPaddedColumnsAndQuotedNamesDistinct() throws {
+    let row = "a        \"a'b c\"  'Green  folder'  placeholder  末尾"
+    let folderOffset = try #require(row.range(of: "folder")).lowerBound
+    let entry = try #require(ListingPathDetection.shortEntry(in: row, at: row.distance(from: row.startIndex, to: folderOffset)))
+    #expect(entry.path.path == "Green  folder")
+    #expect(ListingPathDetection.shortEntry(in: row, at: 4) == nil)
+    #expect(ListingPathDetection.path(for: entry, in: ["% eza /tmp", row], at: 1,
+                                      reachesCursor: true, isLong: false)?.path == "/tmp/Green  folder")
+    #expect(ListingPathDetection.path(for: entry, in: ["% cat notes", row], at: 1,
+                                      reachesCursor: true, isLong: false) == nil)
+}
+
 @Test func commandOutputCandidatesFollowViewportOrLiveBottom() {
     let spans = [CommandSpan(promptRow: 1, lastRow: 3, exitCode: 0),
                  CommandSpan(promptRow: 6, lastRow: 7, exitCode: 2),

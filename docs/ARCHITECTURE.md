@@ -104,14 +104,16 @@ it changed meanwhile.
 
 ## Clickable paths
 
-⌘-click opens paths in visible output. Detection is click-time only: `LeanTerminalView.mouseUp` reads the clicked
-row through SwiftTerm's `visibleRowsText`, maps the column to a character (wide characters count two columns) and
-`PathDetection` (Core, pure text) extracts the token with an optional `:line:col`, `(line,col)` or Python
-`, line N` location. Only then does `FileOpener` expand `~`, resolve against the shell's real directory and check
-the file system, also trying the path without a git `a/` or `b/` prefix. Nothing scans output or touches the file
-system while idle; hovering with ⌘ held checks at most once per hovered token and shows the pointing-hand cursor
-for existing paths. URLs and OSC 8 links stay with SwiftTerm; the release reaches SwiftTerm without ⌘ for handled
-paths so its own cwd-relative opening stays out. Remote tabs are excluded (paths live on the other machine).
+⌘-click opens paths in visible output. SwiftTerm reports the clicked cell and gives explicit OSC 8 links priority
+over the displayed text. It validates those links and routes approved local file URLs to Lean Term's path actions.
+For plain output, `ListingPathDetection` recognizes macOS `ls` and eza long rows and eza's short columns. It uses
+the listing command from a bounded range of surrounding rows to find the listed directory. Relative listings use
+the live shell directory when only listing rows remain before the current prompt.
+
+`PathDetection` handles other text and source locations such as `:line:col`, `(line,col)` and Python's `, line N`.
+`FileOpener` expands `~`, checks that the path exists and can try the path without a Git `a/` or `b/` prefix.
+Output is inspected only on ⌘-click or ⌘-hover. The release reaches SwiftTerm without ⌘ for paths that Lean Term
+handles, so its implicit link handling stays out. Lean Term's local path actions are excluded in remote sessions.
 
 An existing path under a ⌘-held pointer also gets a phosphor highlight: `PathDetection.match` returns the token's
 character range and `column(ofCharacterOffset:)` maps it back to terminal columns, so `PathHighlightView` (one

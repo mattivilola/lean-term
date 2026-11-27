@@ -16,6 +16,20 @@ final class SmokeCheck {
             received += String(decoding: data, as: UTF8.self)
         }
     }
+    private final class PathClickCapture: TerminalPathDelegate {
+        let directory: String
+        let pathsAreRemote = false
+        var opened: [(ResolvedPath, Bool)] = []
+
+        init(directory: String) { self.directory = directory }
+
+        func resolvePath(_ detected: DetectedPath) -> ResolvedPath? {
+            FileOpener.resolve(detected, relativeTo: directory)
+        }
+
+        func openPath(_ path: ResolvedPath, inNewTab: Bool) { opened.append((path, inNewTab)) }
+        func hoverHint(for path: ResolvedPath) -> String { "" }
+    }
     private enum ExitPolicy: String {
         case closeQuit = "close-quit"
         case closeKeep = "close-keep"
@@ -68,6 +82,9 @@ final class SmokeCheck {
                     finish(passed: true)
                 } else if requestedPolicy == "wheel-routing" {
                     try await runWheelRouting()
+                    finish(passed: true)
+                } else if requestedPolicy == "path-clicks" {
+                    try await runPathClicks()
                     finish(passed: true)
                 } else if hasPolicyArgument {
                     guard let requestedPolicy, let policy = ExitPolicy(rawValue: requestedPolicy) else {
@@ -398,6 +415,69 @@ final class SmokeCheck {
         try expect(true, "Mouse reporting still works with arrow fallback disabled")
         session.beginShutdown()
         try await wait { app.sessions.isEmpty }
+    }
+
+    private func runPathClicks() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("leanterm-paths-\(UUID())")
+        let folder = directory.appendingPathComponent("My Folder", isDirectory: true)
+        let file = directory.appendingPathComponent(".notes")
+        let linkTarget = directory.appendingPathComponent("target.txt")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data().write(to: file)
+        try Data().write(to: linkTarget)
+
+        let frame = NSRect(x: 0, y: 0, width: 800, height: 320)
+        let window = NSWindow(contentRect: frame, styleMask: [.titled], backing: .buffered, defer: false)
+        let terminal = LeanTerminalView(frame: frame)
+        let capture = PathClickCapture(directory: directory.path)
+        window.contentView = terminal
+        terminal.pathDelegate = capture
+
+        let esc = "\u{1B}"
+        let linkedName = "\(esc)]8;;\(linkTarget.absoluteString)\(esc)\\My Folder\(esc)]8;;\(esc)\\"
+        terminal.feed(text: """
+        % ls -al\r
+        total 8\r
+        drwxr-xr-x@ 2 me staff 64 Nov 27 13:06 My Folder\r
+        .rw-r--r--@ 0 me 27 Nov 13:07 .notes\r
+        drwxr-xr-x@ 2 me staff 64 Nov 27 13:06 \(linkedName)\r
+        % LEAN_TERM_PATH_TEST
+        """)
+        try await wait("listing output") {
+            terminal.visibleRowsText(0..<terminal.terminalDimensions.rows).contains { $0.contains("LEAN_TERM_PATH_TEST") }
+        }
+
+        func click(row: Int, name: String, modifiers: NSEvent.ModifierFlags = .command) throws {
+            guard let text = terminal.visibleRowsText(row..<(row + 1)).first,
+                  let range = text.range(of: name), let cell = terminal.cellMetrics() else {
+                throw Failure(message: "Could not locate \(name) in the listing")
+            }
+            let column = text.distance(from: text.startIndex, to: range.lowerBound)
+            let point = terminal.convert(NSPoint(x: (CGFloat(column) + 1.5) * cell.width,
+                                                  y: terminal.bounds.height - (CGFloat(row) + 0.5) * cell.height), to: nil)
+            func event(_ type: NSEvent.EventType) -> NSEvent? {
+                NSEvent.mouseEvent(with: type, location: point, modifierFlags: modifiers,
+                                   timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                                   context: nil, eventNumber: 1, clickCount: 1, pressure: 0)
+            }
+            guard let down = event(.leftMouseDown), let up = event(.leftMouseUp) else {
+                throw Failure(message: "Could not create path click events")
+            }
+            terminal.mouseDown(with: down)
+            terminal.mouseUp(with: up)
+        }
+
+        try click(row: 2, name: "My Folder")
+        try expect(capture.opened.last?.0.url.standardizedFileURL.path == folder.standardizedFileURL.path
+                   && capture.opened.last?.0.isDirectory == true && capture.opened.last?.1 == false,
+                   "A plain BSD ls folder uses the current-tab directory action")
+        try click(row: 3, name: ".notes")
+        try expect(capture.opened.count == 2 && capture.opened.last?.0.url.standardizedFileURL.path == file.standardizedFileURL.path
+                   && capture.opened.last?.0.isDirectory == false, "A plain eza dotfile reaches the file opener")
+        try click(row: 4, name: "My Folder", modifiers: [.command, .shift])
+        try expect(capture.opened.count == 3 && capture.opened.last?.0.url.resolvingSymlinksInPath().path == linkTarget.resolvingSymlinksInPath().path
+                   && capture.opened.last?.1 == true, "The explicit file link wins over the printed folder and preserves Shift")
     }
 
     private func pressClearShortcut(in session: TerminalWindow) throws {

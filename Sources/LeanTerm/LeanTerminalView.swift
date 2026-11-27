@@ -32,6 +32,9 @@ final class LeanTerminalView: LocalProcessTerminalView {
     private var redactionRunning = false
     weak var pathDelegate: TerminalPathDelegate?
     private var pressPoint: NSPoint?
+    private var explicitLinkOpensInNewTab: Bool?
+    private typealias ListingRows = (rows: [String], index: Int, reachesCursor: Bool)
+    private var hoverListing: (row: Int, text: String, context: ListingRows?)?
     /// The hovered token whose existence was already checked, so each token costs one file-system check.
     private var hoverCheck: (path: DetectedPath, row: Int, resolved: ResolvedPath?, hint: String?)?
     private var handCursorShown = false
@@ -314,26 +317,44 @@ final class LeanTerminalView: LocalProcessTerminalView {
         super.mouseDown(with: event)
     }
 
-    /// ⌘-click on an existing path opens it. URLs and OSC 8 links stay with SwiftTerm. SwiftTerm still gets the
-    /// release (selection and press bookkeeping), but without ⌘ so its own cwd-relative path opening stays out.
+    /// SwiftTerm checks OSC 8 links first. For a path we handle ourselves, hand over the release without ⌘
+    /// so SwiftTerm can finish mouse bookkeeping without also following an implicit link.
     override func mouseUp(with event: NSEvent) {
         defer { pressPoint = nil }
         guard event.modifierFlags.contains(.command), let pathDelegate, event.clickCount == 1,
               let press = pressPoint, hypot(event.locationInWindow.x - press.x, event.locationInWindow.y - press.y) < 4,
-              let detected = detectedPath(atWindowPoint: event.locationInWindow) else {
+              let hit = pathHit(at: convert(event.locationInWindow, from: nil)) else {
             super.mouseUp(with: event)
             return
         }
+        if hit.isExplicit {
+            explicitLinkOpensInNewTab = event.modifierFlags.contains(.shift)
+            defer { explicitLinkOpensInNewTab = nil }
+            super.mouseUp(with: event)
+            return
+        }
+        let entry = ListingPathDetection.longEntry(in: hit.text)
+        let detected = pathMatch(for: hit, longEntry: entry, hovering: false)?.path
         if pathDelegate.pathsAreRemote {
-            // Remote paths live on the other machine: keep SwiftTerm from opening a local file of the same
-            // relative name, but leave link-like tokens (OSC 8 text such as "example.com") to SwiftTerm.
-            super.mouseUp(with: detected.path.contains("/") ? Self.withoutCommand(event) : event)
-        } else if let resolved = pathDelegate.resolvePath(detected) {
+            super.mouseUp(with: entry != nil || detected?.path.contains("/") == true ? Self.withoutCommand(event) : event)
+        } else if let detected, let resolved = pathDelegate.resolvePath(detected) {
             super.mouseUp(with: Self.withoutCommand(event))
             pathDelegate.openPath(resolved, inNewTab: event.modifierFlags.contains(.shift))
         } else {
-            super.mouseUp(with: event)
+            super.mouseUp(with: entry == nil ? event : Self.withoutCommand(event))
         }
+    }
+
+    override func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {
+        guard let inNewTab = explicitLinkOpensInNewTab, let pathDelegate,
+              let url = URL(string: link), url.isFileURL else {
+            super.requestOpenLink(source: source, link: link, params: params)
+            return
+        }
+        // SwiftTerm calls the delegate only after validating the explicit target.
+        guard !pathDelegate.pathsAreRemote,
+              let resolved = pathDelegate.resolvePath(DetectedPath(path: url.path, line: nil, column: nil)) else { return }
+        pathDelegate.openPath(resolved, inNewTab: inNewTab)
     }
 
     // SwiftTerm's mouseMoved and flagsChanged are not open, so hover feedback listens through local monitors.
@@ -358,6 +379,7 @@ final class LeanTerminalView: LocalProcessTerminalView {
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         hoverCheck = nil
+        hoverListing = nil
         hideHighlight()
     }
 
@@ -366,9 +388,10 @@ final class LeanTerminalView: LocalProcessTerminalView {
 
     /// New output arrived in this pane (called once per burst on the main thread): the highlighted row may have changed.
     func outputArrived() {
+        hoverListing = nil
+        hoverCheck = nil
         guard let pathHighlight, !pathHighlight.isHidden else { return }
         pathHighlight.hide()
-        hoverCheck = nil
     }
 
     private func commandChanged(_ command: Bool) {
@@ -379,6 +402,8 @@ final class LeanTerminalView: LocalProcessTerminalView {
                     if let self, event.window === self.window, self.window?.isKeyWindow == true {
                         // Scrolling moves the text under the pointer; the next move shows the highlight again.
                         if event.type == .scrollWheel {
+                            self.hoverListing = nil
+                            self.hoverCheck = nil
                             self.hideHighlight()
                         } else {
                             self.updateHoverCursor(command: true, windowPoint: event.locationInWindow)
@@ -391,6 +416,7 @@ final class LeanTerminalView: LocalProcessTerminalView {
             if let moveMonitor { NSEvent.removeMonitor(moveMonitor) }
             moveMonitor = nil
             hoverCheck = nil
+            hoverListing = nil
             hideHighlight()
         }
         updateHoverCursor(command: command, windowPoint: window.mouseLocationOutsideOfEventStream)
@@ -399,14 +425,15 @@ final class LeanTerminalView: LocalProcessTerminalView {
     /// Pointing hand and phosphor highlight over an existing path while ⌘ is held. Does nothing without ⌘.
     private func updateHoverCursor(command: Bool, windowPoint: NSPoint) {
         guard command, let pathDelegate, !pathDelegate.pathsAreRemote,
-              let hovered = pathMatch(atWindowPoint: windowPoint) else {
+              let hit = pathHit(at: convert(windowPoint, from: nil)), !hit.isExplicit,
+              let match = pathMatch(for: hit, longEntry: ListingPathDetection.longEntry(in: hit.text), hovering: true) else {
             clearHover()
             return
         }
-        let detected = hovered.match.path
-        if hoverCheck?.path != detected || hoverCheck?.row != hovered.row {
+        let detected = match.path
+        if hoverCheck?.path != detected || hoverCheck?.row != hit.row {
             let resolved = pathDelegate.resolvePath(detected)
-            hoverCheck = (detected, hovered.row, resolved, resolved.map { pathDelegate.hoverHint(for: $0) })
+            hoverCheck = (detected, hit.row, resolved, resolved.map { pathDelegate.hoverHint(for: $0) })
         }
         guard let hint = hoverCheck?.hint else {
             clearHover()
@@ -414,7 +441,7 @@ final class LeanTerminalView: LocalProcessTerminalView {
         }
         handCursorShown = true
         NSCursor.pointingHand.set()
-        showHighlight(for: hovered, hint: hint)
+        showHighlight(for: (match, hit.row, hit.text), hint: hint)
     }
 
     private func clearHover() {
@@ -444,16 +471,25 @@ final class LeanTerminalView: LocalProcessTerminalView {
         highlight.show(rect: rect, hint: hint)
     }
 
-    private func detectedPath(atWindowPoint point: NSPoint) -> DetectedPath? {
-        pathMatch(atWindowPoint: point)?.match.path
+    private func pathMatch(for hit: PathHit, longEntry: PathMatch?, hovering: Bool) -> PathMatch? {
+        let offset = PathDetection.characterOffset(ofColumn: hit.column, in: hit.text)
+        let entry = longEntry ?? ListingPathDetection.shortEntry(in: hit.text, at: offset)
+        if let entry, !hit.isWrapped, entry.characters.contains(offset),
+           let context = listingContext(for: hit, isLong: longEntry != nil, hovering: hovering),
+           context.rows[context.index] == hit.text,
+           let detected = ListingPathDetection.path(for: entry, in: context.rows, at: context.index,
+                                                    reachesCursor: context.reachesCursor, isLong: longEntry != nil) {
+            return PathMatch(path: detected, characters: entry.characters)
+        }
+        guard longEntry == nil else { return nil }
+        return PathDetection.match(in: hit.text, at: offset)
     }
 
-    private func pathMatch(atWindowPoint windowPoint: NSPoint) -> (match: PathMatch, row: Int, text: String)? {
-        guard let cell = gridCell(atWindowPoint: windowPoint),
-              let text = visibleRowsText(cell.row..<(cell.row + 1)).first else { return nil }
-        let offset = PathDetection.characterOffset(ofColumn: cell.col, in: text)
-        guard let match = PathDetection.match(in: text, at: offset) else { return nil }
-        return (match, cell.row, text)
+    private func listingContext(for hit: PathHit, isLong: Bool, hovering: Bool) -> ListingRows? {
+        if hovering, let cached = hoverListing, cached.row == hit.row, cached.text == hit.text { return cached.context }
+        let context = listingRows(around: hit.row, limit: isLong ? 256 : 64)
+        if hovering { hoverListing = (hit.row, hit.text, context) }
+        return context
     }
 
     /// The cell size and grid dimensions SwiftTerm lays out with, derived from its public API.
@@ -467,15 +503,6 @@ final class LeanTerminalView: LocalProcessTerminalView {
         let cellHeight = getOptimalFrameSize().height / CGFloat(dimensions.rows)
         guard cellHeight > 0 else { return nil }
         return (cellWidth, cellHeight, dimensions.cols, dimensions.rows)
-    }
-
-    /// The screen cell under a window point, using the same cell metrics SwiftTerm lays out with.
-    private func gridCell(atWindowPoint windowPoint: NSPoint) -> (col: Int, row: Int)? {
-        let point = convert(windowPoint, from: nil)
-        guard bounds.contains(point), let metrics = cellMetrics() else { return nil }
-        let col = min(max(0, Int(point.x / metrics.width)), metrics.cols - 1)
-        let row = min(max(0, Int((frame.height - point.y) / metrics.height)), metrics.rows - 1)
-        return (col, row)
     }
 
     private static func withoutCommand(_ event: NSEvent) -> NSEvent {
